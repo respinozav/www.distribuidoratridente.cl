@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Catálogo | Distribuidora Tridente</title>
+  <meta name="description" content="Catálogo de productos Distribuidora Tridente." />
+
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <style>
+    /* ===== CATÁLOGO RESPONSIVE FULL WIDTH ===== */
+
+    .catalogo-full {
+      width: 100%;
+      padding: 1rem 0;
+    }
+
+    .catalogo-wrapper {
+      width: 100%;
+      max-width: 100%;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+
+    .catalogo-pdf {
+      width: 100%;
+      height: 92vh; /* casi toda la pantalla */
+      margin-top: 1.5rem;
+    }
+
+    .catalogo-pdf iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      border-radius: 8px;
+    }
+
+    .catalogo-btn {
+      text-align: center;
+      margin-top: 1.5rem;
+    }
+
+    /* móvil */
+    @media (max-width: 600px) {
+      .catalogo-pdf {
+        height: 85vh;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header class="header">
+  <div class="container header-content">
+    <h1 class="logo">Distribuidora Tridente</h1>
+    <nav class="nav">
+      <a href="index.html">Inicio</a>
+      <a href="catalogo.html">Catálogo</a>
+      <a href="legal.html">Legal</a>
+    </nav>
+  </div>
+</header>
+
+
+<section class="section catalogo-full">
+  <div class="catalogo-wrapper">
+
+    <h3 style="text-align:center;">Catálogo de Productos</h3>
+
+    <p style="text-align:center;">
+      Visualiza nuestro catálogo actualizado directamente desde el navegador.
+    </p>
+
+    <!-- ✅ VISOR COMPATIBLE CON MÓVILES -->
+    <div class="catalogo-pdf">
+      <iframe
+        src="https://docs.google.com/viewer?url=https://www.distribuidoratridente.cl/pdf/catalogo-tridente.pdf&embedded=true">
+      </iframe>
+    </div>
+
+    <div class="catalogo-btn">
+      <a href="pdf/catalogo-tridente.pdf" class="btn-primary" target="_blank">
+        Abrir en nueva pestaña
+      </a>
+    </div>
+
+  </div>
+</section>
+
+
+<footer class="footer">
+  <p>© 2026 Distribuidora Tridente</p>
+</footer>
+
+</body>
+</html>
