@@ -1,0 +1,30 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to AWS Ubuntu Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ejecutar comandos de despliegue vía SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          key: ${{ secrets.AWS_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            echo "🚀 Conectando y actualizando www.distribuidoratridente.cl..."
+            cd /var/www/www.distribuidoratridente.cl
+            git fetch origin main
+            git reset --hard origin/main
+            sudo chown -R ubuntu:www-data /var/www/www.distribuidoratridente.cl
+            sudo chmod -R 775 /var/www/www.distribuidoratridente.cl
+            sudo systemctl reload nginx
+            echo "✅ Despliegue completado con éxito."
