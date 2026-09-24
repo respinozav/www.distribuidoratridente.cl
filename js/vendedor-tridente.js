@@ -615,15 +615,12 @@
         <div class="ofertas-modal-footer">
           <div class="ofertas-modal-footer-info">
             <span class="ofertas-live-dot"></span>
-            <span>Promociones actualizadas en tiempo real desde nuestro sistema</span>
+            <span>Promociones actualizadas en tiempo real • Haz clic en cualquier oferta para ver detalles</span>
           </div>
           <div class="ofertas-modal-footer-actions">
-            <a href="https://pedidos.distribuidoratridente.cl" target="_blank" rel="noopener" class="btn-ofertas-portal">
-              🛒 Ir al Portal de Pedidos
-            </a>
-            <a href="https://wa.me/56944488407?text=Hola%20Distribuidora%20Tridente,%20quisiera%20consultar%20por%20las%20ofertas%20vigentes" target="_blank" rel="noopener" class="btn-ofertas-whatsapp">
-              💬 Consultar Ofertas por WhatsApp
-            </a>
+            <button type="button" class="btn-ofertas-fullscreen" id="ofertasModalCloseFooter">
+              ✕ Cerrar
+            </button>
           </div>
         </div>
       </div>
@@ -634,6 +631,7 @@
     const backdrop = document.getElementById('ofertasModalBackdrop');
     const modal = document.getElementById('ofertasModal');
     const closeBtn = document.getElementById('ofertasModalClose');
+    const closeFooterBtn = document.getElementById('ofertasModalCloseFooter');
 
     function abrirModalOfertas() {
       if (!modal || !backdrop) return;
@@ -658,6 +656,7 @@
     }
 
     if (closeBtn) closeBtn.addEventListener('click', cerrarModalOfertas);
+    if (closeFooterBtn) closeFooterBtn.addEventListener('click', cerrarModalOfertas);
     if (backdrop) backdrop.addEventListener('click', cerrarModalOfertas);
 
     document.addEventListener('keydown', (e) => {
