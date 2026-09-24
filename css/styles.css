@@ -1242,6 +1242,34 @@ body.vendedor-modal-open {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  background: #1e3a8a;
+}
+
+.vendedor-header-avatar-wrap {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: #1e3a8a;
+}
+
+.vendedor-avatar-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 12%;
+  border-radius: 50%;
+  display: block;
+  transition: transform 0.25s ease;
+}
+
+.vendedor-tridente-btn:hover .vendedor-avatar-photo {
+  transform: scale(1.08);
 }
 
 .vendedor-avatar-svg {

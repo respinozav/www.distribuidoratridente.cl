@@ -44,6 +44,23 @@
     '🚚 Despacho y ¿Cómo Comprar?'
   ];
 
+  // Helper para generar el avatar fotográfico profesional de Camila con fallback SVG
+  function getCamilaAvatarHTML(suffix) {
+    const s = suffix || '1';
+    return `
+      <img
+        src="img/camila.jpg"
+        alt="Camila • Ejecutiva Comercial Distribuidora Tridente"
+        class="vendedor-avatar-photo"
+        loading="eager"
+        onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';"
+      />
+      <div class="vendedor-avatar-fallback" style="display: none; width: 100%; height: 100%;">
+        ${getCamilaAvatarSVG(s)}
+      </div>
+    `;
+  }
+
   // Helper para generar el avatar SVG de Camila con IDs únicos
   function getCamilaAvatarSVG(suffix) {
     const s = suffix || '1';
@@ -702,7 +719,7 @@
         <button type="button" class="vendedor-tridente-btn" id="vendedorTridenteBtn" aria-label="Hablar con Camila de Ventas Tridente" title="Hablar con Camila">
           <span class="vendedor-status-indicator" title="Camila en línea"></span>
           <div class="vendedor-btn-avatar-wrap">
-            ${getCamilaAvatarSVG('btn')}
+            ${getCamilaAvatarHTML('btn')}
           </div>
         </button>
       </div>
@@ -712,7 +729,9 @@
         <!-- Header con Avatar y Estado de Camila -->
         <div class="vendedor-chat-header">
           <div class="vendedor-header-avatar">
-            ${getCamilaAvatarSVG('hdr')}
+            <div class="vendedor-header-avatar-wrap">
+              ${getCamilaAvatarHTML('hdr')}
+            </div>
             <span class="vendedor-avatar-dot" title="En línea"></span>
           </div>
           <div class="vendedor-header-info">
