@@ -374,7 +374,21 @@
       };
     }
 
-    // 16. Precios y Cotizaciones (Regla 3: No inventar precios)
+    // 16. Ofertas y Promociones
+    if (q.includes('oferta') || q.includes('promocion') || q.includes('descuento') || q.includes('rebaja') || q.includes('combo')) {
+      return {
+        texto: `🔥 <strong>¡Tenemos excelentes ofertas y promociones mayoristas vigentes!</strong><br><br>` +
+               `Contamos con precios especiales en confites Bon o Bon, combos de chocolates Costa y Arcor, promociones en papelillos OCB y descuentos por volumen para tu negocio.<br><br>` +
+               `Puedes revisar las ofertas actualizadas directamente en nuestro banner web o pedirme la lista de promociones por WhatsApp:`,
+        cta: {
+          texto: '🔥 Ver Banner de Ofertas',
+          url: '#ofertas'
+        },
+        chips: ['🍫 Bon o Bon y Chocolates', '💬 Pedir Ofertas por WhatsApp', '📄 Ver Catálogo', '📋 ¿Cómo Comprar?']
+      };
+    }
+
+    // 17. Precios y Cotizaciones (Regla 3: No inventar precios)
     if (q.includes('precio') || q.includes('cuanto vale') || q.includes('cuanto cuesta') || q.includes('valor') ||
         q.includes('cotizar') || q.includes('cotizacion') || q.includes('tarifa') || q.includes('lista de precio')) {
       return {
@@ -539,6 +553,7 @@
 
           <!-- Menú amplio de sugerencias de productos iniciales -->
           <div class="vendedor-quick-chips" id="vendedorInitialChips">
+            <button type="button" class="vendedor-chip" data-query="¿Qué ofertas y promociones tienen hoy?">🔥 Ver Ofertas y Promociones</button>
             <button type="button" class="vendedor-chip" data-query="¿Qué variedades de alfajores Bon o Bon tienen?">🍫 Alfajores Bon o Bon</button>
             <button type="button" class="vendedor-chip" data-query="¿Tienen gomitas Frugelé y caramelos Ambrosoli?">🍬 Gomitas y Confites</button>
             <button type="button" class="vendedor-chip" data-query="¿Qué galletas McKay y Costa tienen?">🍪 Galletas McKay y Costa</button>

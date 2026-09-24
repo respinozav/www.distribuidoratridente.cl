@@ -79,6 +79,7 @@
 
       <nav class="nav" id="mainNav">
         <a href="index.html">Inicio</a>
+        <a href="#ofertas" class="nav-ofertas"><span class="nav-ofertas-flame">🔥</span> Ofertas!</a>
         <a href="#categorias">Categorías</a>
         <a href="#beneficios">Beneficios</a>
         <a href="#zonas">Zonas de Despacho</a>
@@ -187,6 +188,52 @@
           <div class="brand-card"><img src="img/marcas/eveready.png" alt="Eveready" loading="lazy" /></div>
           <div class="brand-card"><img src="img/marcas/duracell.png" alt="Duracell" loading="lazy" /></div>
           <div class="brand-card"><img src="img/marcas/ocb.png" alt="OCB" loading="lazy" /></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== BANNER DE OFERTAS Y PROMOCIONES ==================== -->
+  <section class="ofertas-section" id="ofertas">
+    <div class="container">
+      <div class="ofertas-header">
+        <div class="ofertas-badge-header">
+          <span class="pulse-flame">🔥</span>
+          <span>Oportunidades Mayoristas Exclusivas</span>
+        </div>
+        <h2 class="ofertas-title">
+          Ofertas y Promociones de la Semana
+        </h2>
+        <p class="ofertas-subtitle">
+          Precios especiales por volumen, combos de alta rotación y descuentos directos para surtir tu negocio.
+        </p>
+      </div>
+
+      <div class="ofertas-banner-card" id="ofertasBannerCard">
+        <div class="ofertas-iframe-container">
+          <iframe
+            id="ofertasIframe"
+            src="https://pedidos.distribuidoratridente.cl/Publicidades?embed=true"
+            title="Ofertas y Promociones Distribuidora Tridente"
+            class="ofertas-iframe"
+            loading="eager"
+            allow="autoplay">
+          </iframe>
+        </div>
+
+        <div class="ofertas-footer-bar">
+          <div class="ofertas-footer-info">
+            <span class="ofertas-live-dot"></span>
+            <span>Promociones actualizadas en tiempo real desde nuestro sistema</span>
+          </div>
+          <div class="ofertas-footer-actions">
+            <a href="https://pedidos.distribuidoratridente.cl" target="_blank" rel="noopener" class="btn-ofertas-portal">
+              🛒 Ir al Portal de Pedidos
+            </a>
+            <a href="https://wa.me/56944488407?text=Hola%20Distribuidora%20Tridente,%20quisiera%20consultar%20por%20las%20ofertas%20vigentes" target="_blank" rel="noopener" class="btn-ofertas-whatsapp">
+              💬 Consultar Ofertas por WhatsApp
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -485,6 +532,25 @@
         if (nav.classList.contains('active')) {
           nav.classList.remove('active');
         }
+      });
+    });
+
+    // Resaltar sección de ofertas al hacer clic en el menú o navegar con #ofertas
+    function destacarOfertas() {
+      const card = document.getElementById('ofertasBannerCard');
+      if (card) {
+        card.classList.add('ofertas-highlighted');
+        setTimeout(() => card.classList.remove('ofertas-highlighted'), 2200);
+      }
+    }
+
+    if (window.location.hash === '#ofertas') {
+      setTimeout(destacarOfertas, 400);
+    }
+
+    document.querySelectorAll('a[href="#ofertas"]').forEach(link => {
+      link.addEventListener('click', () => {
+        setTimeout(destacarOfertas, 300);
       });
     });
   </script>
