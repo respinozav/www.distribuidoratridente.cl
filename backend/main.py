@@ -35,15 +35,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("camila")
 
 GEMINI_API_KEY  = os.environ["GEMINI_API_KEY"]
-DB_HOST         = os.environ["DATABASE_HOST"]
+DB_HOST         = os.environ.get("DATABASE_HOST", "localhost")
 DB_PORT         = int(os.environ.get("DATABASE_PORT", 5432))
-DB_NAME         = os.environ["DATABASE_NAME"]
-DB_USER         = os.environ["DATABASE_USER"]
-DB_PASSWORD     = os.environ["DATABASE_PASSWORD"]
+DB_NAME         = os.environ.get("DATABASE_NAME", "postgres")
+DB_SCHEMA       = os.environ.get("DATABASE_SCHEMA", "bdtridente")
+DB_USER         = os.environ.get("DATABASE_USER", "postgres")
+DB_PASSWORD     = os.environ.get("DATABASE_PASSWORD", "")
 WHATSAPP_NUMBER = os.environ.get("WHATSAPP_NUMBER", "56944488407")
 ALLOWED_ORIGINS = os.environ.get(
     "ALLOWED_ORIGINS",
-    "https://www.distribuidoratridente.cl,http://localhost,http://127.0.0.1"
+    "https://www.distribuidoratridente.cl,https://camila.distribuidoratridente.cl,http://localhost,http://127.0.0.1"
 ).split(",")
 
 # ---------------------------------------------------------------------------
@@ -87,7 +88,7 @@ def generate_with_fallback(contents: list, system_instruction: str) -> str:
 sessions: dict[str, list] = {}
 
 # ---------------------------------------------------------------------------
-# Conexión PostgreSQL (Esquema bdtridente)
+# Conexión PostgreSQL (Base de datos postgres, Esquema bdtridente)
 # ---------------------------------------------------------------------------
 def get_db():
     return psycopg2.connect(
@@ -96,13 +97,14 @@ def get_db():
         dbname=DB_NAME,
         user=DB_USER,
         password=DB_PASSWORD,
+        options=f"-c search_path={DB_SCHEMA},public",
         connect_timeout=10,
     )
 
 
 def query_productos(termino: str, limit: int = 12) -> list[dict]:
-    """Busca productos en bdtridente.productos por nombre, código o categoría."""
-    sql = """
+    """Busca productos en {DB_SCHEMA}.productos por nombre, código o categoría."""
+    sql = f"""
         SELECT
             p.codigo,
             p.nombre,
@@ -112,8 +114,8 @@ def query_productos(termino: str, limit: int = 12) -> list[dict]:
             p.cantidad_caja,
             p.precio_caja,
             p.cantidad AS stock
-        FROM bdtridente.productos p
-        LEFT JOIN bdtridente.categorias c ON c.id = p.categoria_id
+        FROM {DB_SCHEMA}.productos p
+        LEFT JOIN {DB_SCHEMA}.categorias c ON c.id = p.categoria_id
         WHERE
             p.activo = true
             AND p.eliminado_at IS NULL
@@ -146,12 +148,11 @@ def query_productos(termino: str, limit: int = 12) -> list[dict]:
 
 def get_all_categorias() -> list[str]:
     """Retorna todas las categorías activas de la distribuidora."""
+    sql = f"SELECT DISTINCT nombre FROM {DB_SCHEMA}.categorias WHERE activo = true AND eliminado_at IS NULL ORDER BY nombre"
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT DISTINCT nombre FROM bdtridente.categorias WHERE activo = true AND eliminado_at IS NULL ORDER BY nombre"
-                )
+                cur.execute(sql)
                 return [r[0] for r in cur.fetchall()]
     except Exception as exc:
         log.warning("DB categorias failed: %s", exc)
@@ -313,7 +314,7 @@ def chat(req: ChatRequest):
 
         if found_products:
             db_context = (
-                "\n\n[DATOS DE BASE DE DATOS (tabla bdtridente.productos)]:\n"
+                f"\n\n[DATOS DE BASE DE DATOS (tabla {DB_SCHEMA}.productos)]:\n"
                 + json.dumps(found_products[:12], ensure_ascii=False, default=str)
             )
         else:
