@@ -144,8 +144,53 @@
     </div>
   </section>
 
+  <!-- ==================== BANNER DE OFERTAS Y PROMOCIONES (PUBLICIDAD) ==================== -->
+  <section class="ofertas-section" id="ofertas">
+    <div class="container">
+      <div class="ofertas-header">
+        <div class="ofertas-badge-header">
+          <span class="pulse-flame">🔥</span>
+          <span>Oportunidades Mayoristas Exclusivas</span>
+        </div>
+        <h2 class="ofertas-title">
+          Ofertas y Promociones de la Semana
+        </h2>
+        <p class="ofertas-subtitle">
+          Precios especiales por volumen, combos de alta rotación y descuentos directos para surtir tu negocio.
+        </p>
+      </div>
+
+      <div class="ofertas-banner-card" id="ofertasBannerCard">
+        <div class="ofertas-iframe-container">
+          <iframe
+            id="ofertasIframe"
+            src="https://pedidos.distribuidoratridente.cl/Publicidades?embed=true"
+            title="Ofertas y Promociones Distribuidora Tridente"
+            class="ofertas-iframe"
+            loading="eager"
+            allow="autoplay"
+            allowtransparency="true"
+            style="background: transparent;">
+          </iframe>
+        </div>
+
+        <div class="ofertas-footer-bar">
+          <div class="ofertas-footer-info">
+            <span class="ofertas-live-dot"></span>
+            <span>Promociones actualizadas en tiempo real • Haz clic en cualquier oferta para ver detalles</span>
+          </div>
+          <div class="ofertas-footer-actions">
+            <button type="button" class="btn-ofertas-fullscreen btn-abrir-ofertas" title="Ver ofertas en modal de pantalla completa">
+              🔍 Pantalla Completa
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ==================== CARRUSEL DE MARCAS ==================== -->
-  <section class="brands-section">
+  <section class="brands-section" id="marcas">
     <div class="container">
       <div class="section-header" style="margin-bottom: 2rem;">
         <span class="section-tag">Confianza y Calidad</span>
@@ -188,49 +233,6 @@
           <div class="brand-card"><img src="img/marcas/eveready.png" alt="Eveready" loading="lazy" /></div>
           <div class="brand-card"><img src="img/marcas/duracell.png" alt="Duracell" loading="lazy" /></div>
           <div class="brand-card"><img src="img/marcas/ocb.png" alt="OCB" loading="lazy" /></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ==================== BANNER DE OFERTAS Y PROMOCIONES ==================== -->
-  <section class="ofertas-section" id="ofertas">
-    <div class="container">
-      <div class="ofertas-header">
-        <div class="ofertas-badge-header">
-          <span class="pulse-flame">🔥</span>
-          <span>Oportunidades Mayoristas Exclusivas</span>
-        </div>
-        <h2 class="ofertas-title">
-          Ofertas y Promociones de la Semana
-        </h2>
-        <p class="ofertas-subtitle">
-          Precios especiales por volumen, combos de alta rotación y descuentos directos para surtir tu negocio.
-        </p>
-      </div>
-
-      <div class="ofertas-banner-card" id="ofertasBannerCard">
-        <div class="ofertas-iframe-container">
-          <iframe
-            id="ofertasIframe"
-            src="https://pedidos.distribuidoratridente.cl/Publicidades?embed=true"
-            title="Ofertas y Promociones Distribuidora Tridente"
-            class="ofertas-iframe"
-            loading="eager"
-            allow="autoplay">
-          </iframe>
-        </div>
-
-        <div class="ofertas-footer-bar">
-          <div class="ofertas-footer-info">
-            <span class="ofertas-live-dot"></span>
-            <span>Promociones actualizadas en tiempo real • Haz clic en cualquier oferta para ver detalles</span>
-          </div>
-          <div class="ofertas-footer-actions">
-            <button type="button" class="btn-ofertas-fullscreen btn-abrir-ofertas" title="Ver ofertas en modal de pantalla completa">
-              🔍 Pantalla Completa
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -550,6 +552,38 @@
         setTimeout(destacarOfertas, 300);
       });
     });
+
+    // Auto-ajuste fino de altura para el banner de ofertas (elimina espacios en blanco)
+    function autoAjustarIframeOfertas() {
+      const iframe = document.getElementById('ofertasIframe');
+      if (!iframe) return;
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc) {
+          const banner = doc.querySelector('.promo-banner-wrapper') || doc.querySelector('.pub-banner-showcase');
+          if (banner && banner.offsetHeight > 100) {
+            const h = Math.ceil(banner.offsetHeight);
+            iframe.style.height = h + 'px';
+            const container = iframe.closest('.ofertas-iframe-container');
+            if (container) {
+              container.style.height = h + 'px';
+              container.style.minHeight = h + 'px';
+            }
+          }
+        }
+      } catch (err) {
+        // En caso de política cross-origin, el CSS responsivo garantiza la altura exacta
+      }
+    }
+
+    const iframeOfertas = document.getElementById('ofertasIframe');
+    if (iframeOfertas) {
+      iframeOfertas.addEventListener('load', () => {
+        autoAjustarIframeOfertas();
+        setTimeout(autoAjustarIframeOfertas, 600);
+      });
+      window.addEventListener('resize', autoAjustarIframeOfertas);
+    }
   </script>
   <!-- Camila AI Widget — Agente IA conectado al backend Gemini (puerto 8015) -->
   <script src="js/camila-widget.js" defer></script>
