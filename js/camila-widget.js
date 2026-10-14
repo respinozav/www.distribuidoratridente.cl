@@ -111,64 +111,15 @@
         transform: scale(0.96);
       }
       #camilaBtn svg {
-        width: 34px;
-        height: 34px;
-        fill: #ffffff;
+        width: 38px;
+        height: 38px;
+        display: block;
+        pointer-events: none;
       }
 
-      /* Badge de notificación en el botón */
-      .wa-badge-dot {
-        position: absolute;
-        top: 2px;
-        right: 2px;
-        width: 14px;
-        height: 14px;
-        background: #ef4444;
-        border: 2px solid #ffffff;
-        border-radius: 50%;
-      }
-
-      /* Tooltip amigable de Camila */
-      #camilaCloud {
-        position: absolute;
-        bottom: 74px;
-        right: 0;
-        background: #ffffff;
-        border-radius: 14px 14px 2px 14px;
-        padding: 10px 14px;
-        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
-        font-size: 0.82rem;
-        color: #111b21;
-        width: 220px;
-        line-height: 1.35;
-        cursor: pointer;
-        animation: wa-cloud-in 0.35s ease;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        -webkit-tap-highlight-color: transparent;
-      }
-      #camilaCloudClose {
-        position: absolute;
-        top: -6px;
-        right: -6px;
-        background: #64748b;
-        color: #fff;
-        border: none;
-        border-radius: 50%;
-        width: 20px;
-        height: 20px;
-        font-size: 12px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      }
-      @keyframes wa-cloud-in {
-        from { opacity: 0; transform: translateY(8px); }
-        to   { opacity: 1; transform: translateY(0); }
+      /* Ocultar el botón flotante estático duplicado si existe */
+      .whatsapp-float-container {
+        display: none !important;
       }
 
       /* Ventana de chat WhatsApp (Escritorio) */
@@ -643,20 +594,12 @@
     const widget = document.createElement('div');
     widget.id = 'camilaWidget';
     widget.innerHTML = `
-      <!-- Tooltip amigable de Camila -->
-      <div id="camilaCloud" role="button" tabindex="0" title="Chatear con Camila en WhatsApp">
-        <button type="button" id="camilaCloudClose" aria-label="Cerrar">×</button>
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="#25D366" style="flex-shrink:0;">
-          <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.18-2.586-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.311.045-.698.077-1.121-.059-.268-.087-.61-.205-1.049-.395-1.849-.801-3.053-2.659-3.146-2.783-.092-.123-.746-.992-.746-1.893 0-.9.472-1.343.64-1.527.168-.185.367-.231.49-.231.122 0 .245.002.352.007.112.006.262-.043.41.314.153.37.52 1.272.566 1.365.046.092.077.2.015.323-.061.123-.092.2-.184.308-.092.107-.194.24-.277.322-.093.093-.19.194-.082.38.107.185.477.787 1.025 1.274.706.628 1.302.822 1.487.914.185.093.292.078.4-.046.108-.124.46-.538.583-.723.123-.184.246-.153.414-.092.169.062 1.074.507 1.258.6.185.092.308.138.353.215.046.077.046.446-.098.851z"/>
-        </svg>
-        <div><strong>¡Hola! 👋 Soy Camila</strong><br>¿Necesitas algo para tu negocio? Escríbeme aquí</div>
-      </div>
-
-      <!-- ÚNICO BOTÓN VISIBLE: Botón oficial de WhatsApp -->
-      <button type="button" id="camilaBtn" aria-label="Abrir WhatsApp Distribuidora Tridente" title="Chatear con Camila en WhatsApp">
-        <span class="wa-badge-dot" id="camilaBadge"></span>
-        <svg viewBox="0 0 24 24">
-          <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.18-2.586-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.311.045-.698.077-1.121-.059-.268-.087-.61-.205-1.049-.395-1.849-.801-3.053-2.659-3.146-2.783-.092-.123-.746-.992-.746-1.893 0-.9.472-1.343.64-1.527.168-.185.367-.231.49-.231.122 0 .245.002.352.007.112.006.262-.043.41.314.153.37.52 1.272.566 1.365.046.092.077.2.015.323-.061.123-.092.2-.184.308-.092.107-.194.24-.277.322-.093.093-.19.194-.082.38.107.185.477.787 1.025 1.274.706.628 1.302.822 1.487.914.185.093.292.078.4-.046.108-.124.46-.538.583-.723.123-.184.246-.153.414-.092.169.062 1.074.507 1.258.6.185.092.308.138.353.215.046.077.046.446-.098.851z"/>
+      <!-- Botón oficial de WhatsApp -->
+      <button type="button" id="camilaBtn" aria-label="Abrir WhatsApp Distribuidora Tridente" title="Chatear en WhatsApp">
+        <svg viewBox="0 0 175.216 175.552" width="38" height="38" aria-hidden="true">
+          <path fill="#ffffff" d="m12.966 161.238 10.439-38.114a73.42 73.42 0 0 1-9.821-36.772c.017-40.556 33.021-73.55 73.578-73.55 19.681.01 38.154 7.669 52.047 21.572s21.537 32.383 21.53 52.037c-.018 40.553-33.027 73.553-73.578 73.553h-.032c-12.313-.005-24.412-3.094-35.159-8.954z"/>
+          <path fill="#25d366" d="M87.184 25.227c-33.733 0-61.166 27.423-61.178 61.13a60.98 60.98 0 0 0 9.349 32.535l1.455 2.313-6.179 22.558 23.146-6.069 2.235 1.324c9.387 5.571 20.15 8.517 31.126 8.523h.023c33.707 0 61.14-27.426 61.153-61.135a60.75 60.75 0 0 0-17.895-43.251 60.75 60.75 0 0 0-43.235-17.928z"/>
+          <path fill="#ffffff" fill-rule="evenodd" d="M68.772 55.603c-1.378-3.061-2.828-3.123-4.137-3.176l-3.524-.043c-1.226 0-3.218.46-4.902 2.3s-6.435 6.287-6.435 15.332 6.588 17.785 7.506 19.013 12.718 20.381 31.405 27.75c15.529 6.124 18.689 4.906 22.061 4.6s10.877-4.447 12.408-8.74 1.532-7.971 1.073-8.74-1.685-1.226-3.525-2.146-10.877-5.367-12.562-5.981-2.91-.919-4.137.921-4.746 5.979-5.819 7.206-2.144 1.381-3.984.462-7.76-2.861-14.784-9.124c-5.465-4.873-9.154-10.891-10.228-12.73s-.114-2.835.808-3.751c.825-.824 1.838-2.147 2.759-3.22s1.224-1.84 1.836-3.065.307-2.301-.153-3.22-4.032-10.011-5.666-13.647"/>
         </svg>
       </button>
 
@@ -786,8 +729,10 @@
             Toca el botón verde para abrir WhatsApp y mi compañero te contacta al tiro:
           </div>
           <a href="${whatsappUrl}" target="_blank" rel="noopener noreferrer" class="wa-action-btn">
-            <svg viewBox="0 0 24 24">
-              <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.18-2.586-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.311.045-.698.077-1.121-.059-.268-.087-.61-.205-1.049-.395-1.849-.801-3.053-2.659-3.146-2.783-.092-.123-.746-.992-.746-1.893 0-.9.472-1.343.64-1.527.168-.185.367-.231.49-.231.122 0 .245.002.352.007.112.006.262-.043.41.314.153.37.52 1.272.566 1.365.046.092.077.2.015.323-.061.123-.092.2-.184.308-.092.107-.194.24-.277.322-.093.093-.19.194-.082.38.107.185.477.787 1.025 1.274.706.628 1.302.822 1.487.914.185.093.292.078.4-.046.108-.124.46-.538.583-.723.123-.184.246-.153.414-.092.169.062 1.074.507 1.258.6.185.092.308.138.353.215.046.077.046.446-.098.851z"/>
+            <svg viewBox="0 0 175.216 175.552" width="20" height="20" aria-hidden="true">
+              <path fill="#ffffff" d="m12.966 161.238 10.439-38.114a73.42 73.42 0 0 1-9.821-36.772c.017-40.556 33.021-73.55 73.578-73.55 19.681.01 38.154 7.669 52.047 21.572s21.537 32.383 21.53 52.037c-.018 40.553-33.027 73.553-73.578 73.553h-.032c-12.313-.005-24.412-3.094-35.159-8.954z"/>
+              <path fill="#25d366" d="M87.184 25.227c-33.733 0-61.166 27.423-61.178 61.13a60.98 60.98 0 0 0 9.349 32.535l1.455 2.313-6.179 22.558 23.146-6.069 2.235 1.324c9.387 5.571 20.15 8.517 31.126 8.523h.023c33.707 0 61.14-27.426 61.153-61.135a60.75 60.75 0 0 0-17.895-43.251 60.75 60.75 0 0 0-43.235-17.928z"/>
+              <path fill="#ffffff" fill-rule="evenodd" d="M68.772 55.603c-1.378-3.061-2.828-3.123-4.137-3.176l-3.524-.043c-1.226 0-3.218.46-4.902 2.3s-6.435 6.287-6.435 15.332 6.588 17.785 7.506 19.013 12.718 20.381 31.405 27.75c15.529 6.124 18.689 4.906 22.061 4.6s10.877-4.447 12.408-8.74 1.532-7.971 1.073-8.74-1.685-1.226-3.525-2.146-10.877-5.367-12.562-5.981-2.91-.919-4.137.921-4.746 5.979-5.819 7.206-2.144 1.381-3.984.462-7.76-2.861-14.784-9.124c-5.465-4.873-9.154-10.891-10.228-12.73s-.114-2.835.808-3.751c.825-.824 1.838-2.147 2.759-3.22s1.224-1.84 1.836-3.065.307-2.301-.153-3.22-4.032-10.011-5.666-13.647"/>
             </svg>
             📲 Abrir WhatsApp Oficial con Ventas
           </a>
@@ -853,11 +798,8 @@
     const chatWin    = document.getElementById('camilaChatWindow');
     const backBtn    = document.getElementById('camilaBackBtn');
     const closeIcon  = document.getElementById('camilaCloseIcon');
-    const cloud      = document.getElementById('camilaCloud');
-    const cloudClose = document.getElementById('camilaCloudClose');
     const form       = document.getElementById('camilaChatForm');
     const input      = document.getElementById('camilaChatInput');
-    const badge      = document.getElementById('camilaBadge');
     const chips      = document.getElementById('camilaQuickChips');
 
     function openChat() {
@@ -868,8 +810,6 @@
         chatWin.setAttribute('aria-hidden', 'false');
       }
       document.body.classList.add('camila-body-locked');
-      if (cloud) cloud.style.display = 'none';
-      if (badge) badge.style.display = 'none';
       setTimeout(() => { if (input) input.focus(); }, 250);
       scrollBottom();
     }
@@ -888,23 +828,6 @@
     if (backBtn) backBtn.addEventListener('click', closeChat);
     if (closeIcon) closeIcon.addEventListener('click', closeChat);
 
-    if (cloud) {
-      cloud.addEventListener('click', (e) => {
-        if (e.target !== cloudClose) openChat();
-      });
-    }
-
-    if (cloudClose) {
-      cloudClose.addEventListener('click', (e) => {
-        e.stopPropagation();
-        cloud.style.display = 'none';
-        sessionStorage.setItem('camila_cloud_dismissed', '1');
-      });
-    }
-
-    if (sessionStorage.getItem('camila_cloud_dismissed') === '1' && cloud) {
-      cloud.style.display = 'none';
-    }
 
     // Chips de sugerencia rápida (un toque en celular)
     if (chips) {
