@@ -698,22 +698,6 @@
             🔒 Chat directo con <strong>Camila</strong> • Ventas Distribuidora Tridente
           </div>
 
-          <!-- Mensaje inicial natural y cercano de Camila -->
-          <div class="wa-bubble-wrap wa-bubble-in">
-            <div class="wa-bubble">
-              ¡Hola! 👋 Soy <strong>Camila</strong> de Distribuidora Tridente.<br><br>
-              Atiendo pedidos y consultas para almacenes y locales acá en la cuarta región.<br><br>
-              ¿Cuál es tu nombre y qué andas buscando? Cuéntame y te ayudo al tiro 😊
-              <span class="wa-bubble-meta">${getTime()}</span>
-            </div>
-          </div>
-
-          <!-- Sugerencias rápidas táctiles para celular -->
-          <div class="wa-quick-chips" id="camilaQuickChips">
-            <button type="button" class="wa-chip-btn" data-msg="¿Cómo puedo ser cliente?">🙋 ¿Cómo puedo ser cliente?</button>
-            <button type="button" class="wa-chip-btn" data-msg="Quiero ver el catálogo online">📦 Ver catálogo online</button>
-            <button type="button" class="wa-chip-btn" data-msg="¿Dónde despachan?">🚚 ¿Dónde despachan?</button>
-          </div>
 
           <!-- Burbuja de escritura -->
           <div class="wa-typing-bubble" id="camilaTyping">
