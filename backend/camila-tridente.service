@@ -1,0 +1,18 @@
+[Unit]
+Description=Camila AI Backend — Distribuidora Tridente
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/www.distribuidoratridente.cl/backend
+EnvironmentFile=/var/www/www.distribuidoratridente.cl/backend/.env
+ExecStart=/var/www/www.distribuidoratridente.cl/backend/venv/bin/python main.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/camila-backend.log
+StandardError=append:/var/log/camila-backend.error.log
+
+[Install]
+WantedBy=multi-user.target

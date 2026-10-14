@@ -20,11 +20,5 @@ jobs:
           key: ${{ secrets.AWS_PRIVATE_KEY }}
           script_stop: true
           script: |
-            echo "🚀 Conectando y actualizando www.distribuidoratridente.cl..."
-            cd /var/www/www.distribuidoratridente.cl
-            git fetch origin main
-            git reset --hard origin/main
-            sudo chown -R ubuntu:www-data /var/www/www.distribuidoratridente.cl
-            sudo chmod -R 775 /var/www/www.distribuidoratridente.cl
-            sudo systemctl reload nginx
-            echo "✅ Despliegue completado con éxito."
+            cd /var/www/www.distribuidoratridente.cl/deploy
+            bash deploy.sh
