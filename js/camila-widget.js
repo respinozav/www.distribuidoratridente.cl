@@ -503,8 +503,7 @@
           right: 16px;
         }
 
-        #camilaWidget.wa-chat-active #camilaBtn,
-        #camilaWidget.wa-chat-active #camilaCloud {
+        #camilaWidget.wa-chat-active #camilaBtn {
           display: none !important;
         }
 
@@ -513,16 +512,8 @@
           height: 58px;
         }
         #camilaBtn svg {
-          width: 32px;
-          height: 32px;
-        }
-
-        #camilaCloud {
-          width: 200px;
-          max-width: calc(100vw - 90px);
-          bottom: 70px;
-          font-size: 0.78rem;
-          padding: 8px 12px;
+          width: 34px;
+          height: 34px;
         }
 
         /* Pantalla completa en celular como WhatsApp Web/App nativo */
