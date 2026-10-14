@@ -20,5 +20,8 @@ jobs:
           key: ${{ secrets.AWS_PRIVATE_KEY }}
           script_stop: true
           script: |
-            cd /var/www/www.distribuidoratridente.cl/deploy
+            cd /var/www/www.distribuidoratridente.cl
+            git fetch origin main
+            git reset --hard origin/main
+            cd deploy
             bash deploy.sh
