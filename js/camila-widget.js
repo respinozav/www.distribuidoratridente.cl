@@ -714,10 +714,10 @@
       actionHTML = `
         <div class="wa-action-card">
           <div class="wa-action-title">
-            ✅ ¡Datos listos para coordinar!
+            ✅ ¡Datos listos para registrarte!
           </div>
           <div class="wa-action-desc">
-            Toca el botón verde para abrir WhatsApp y mi compañero te contacta al tiro:
+            Toca el botón verde para abrir WhatsApp y nuestro equipo de ventas te contacta al tiro:
           </div>
           <a href="${whatsappUrl}" target="_blank" rel="noopener noreferrer" class="wa-action-btn">
             <svg viewBox="0 0 175.216 175.552" width="20" height="20" aria-hidden="true">

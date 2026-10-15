@@ -55,7 +55,6 @@ gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 PRIMARY_MODEL = "gemini-3.1-flash-lite"
 FALLBACK_MODELS = [
     "gemini-3.1-flash-lite",
-    "gemini-3.5-flash-lite",
     "gemini-3.8-flash",
 ]
 
@@ -207,15 +206,22 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente, d
 4. Si preguntan por un producto específico:
    Revisa los datos del sistema adjuntos e informa el precio claro y directo en 1 línea.
    Si no está: "Ese producto justo no lo tengo disponible en el sistema en este momento, pero puedes revisar el catálogo online https://pedidos.distribuidoratridente.cl/Public/Catalogo o decirme si te sirve alguna alternativa similar 😊".
-5. Si preguntan cómo comprar, cómo ser cliente o pedidos:
-   "¡Excelente! Para coordinar tus compras te contacto directo con el vendedor de tu zona. ¿Me puedes compartir tu número de celular y la dirección o sector de tu negocio?".
-6. En cuanto el cliente te entregue SU CELULAR Y SU DIRECCIÓN / SECTOR:
-   "¡Perfecto! Ya anoté tus datos. Presiona el botón verde de abajo para abrir WhatsApp y mi compañero te contactará al tiro 👍"
+5. Si preguntan cómo comprar, cómo ser cliente, cómo registrarse, hacer un pedido, o cuando se va a cerrar la venta/contacto con un cliente nuevo:
+   Pide amablemente los 5 datos necesarios para coordinar su primera compra y registrarlo como cliente:
+   "¡Excelente! Para coordinar tu primera compra y registrarte como cliente, necesito que me compartas los siguientes datos:
+   • Razón Social (o nombre de tu negocio)
+   • RUT de la Razón Social
+   • Número de celular
+   • Dirección o sector de tu negocio
+   • Correo electrónico
+   ¿Me los podrías facilitar?"
+6. En cuanto el cliente te entregue sus datos de contacto/registro:
+   "¡Perfecto! Ya anoté todos tus datos. Presiona el botón verde de abajo para abrir WhatsApp y nuestro equipo de ventas te contactará al tiro para coordinar tu pedido 👍"
    Y al final de tu respuesta (en una nueva línea) incluye EXACTAMENTE este bloque JSON:
 ```json
-{"action":"redirect_whatsapp","nombre":"NOMBRE_CLIENTE_O_VACIO","celular":"NUMERO_CLIENTE","direccion":"DIRECCION_CLIENTE"}
+{"action":"redirect_whatsapp","razon_social":"RAZON_SOCIAL_O_VACIO","rut":"RUT_O_VACIO","celular":"NUMERO_CELULAR","direccion":"DIRECCION_O_SECTOR","correo":"CORREO_ELECTRONICO"}
 ```
-(Si no tienes el nombre pon "" en nombre, pero solo emite este JSON cuando ya tengas CELULAR y DIRECCIÓN).
+(Si falta algún dato no crítico puedes poner "" en ese campo, pero solo emite este bloque JSON cuando el cliente ya te haya compartido sus datos de contacto o registro).
 7. Zonas de cobertura: Despachamos en toda la Región de Coquimbo (La Serena, Coquimbo, Ovalle, Vicuña y alrededores).
 """
 
@@ -367,20 +373,34 @@ def chat(req: ChatRequest):
         if json_match:
             json_str = json_match.group(0)
             action_data = json.loads(json_str)
-            nombre = str(action_data.get("nombre", "")).strip()
-            if nombre.lower() in ["nombre_cliente", "none", "null"]:
-                nombre = ""
+            razon_social = str(action_data.get("razon_social", "") or action_data.get("nombre", "")).strip()
+            if razon_social.lower() in ["razon_social_o_vacio", "nombre_cliente_o_vacio", "nombre_cliente", "none", "null", "vacio"]:
+                razon_social = ""
+            rut = str(action_data.get("rut", "")).strip()
+            if rut.lower() in ["rut_o_vacio", "none", "null", "vacio"]:
+                rut = ""
             celular = str(action_data.get("celular", "")).strip()
+            if celular.lower() in ["numero_celular", "numero_cliente", "none", "null", "vacio"]:
+                celular = ""
             direccion = str(action_data.get("direccion", "")).strip()
+            if direccion.lower() in ["direccion_o_sector", "direccion_cliente", "none", "null", "vacio"]:
+                direccion = ""
+            correo = str(action_data.get("correo", "") or action_data.get("email", "")).strip()
+            if correo.lower() in ["correo_electronico", "email", "none", "null", "vacio"]:
+                correo = ""
 
-            lineas = ["¡Hola! Vengo desde la página web con Camila."]
-            if nombre:
-                lineas.append(f"• Nombre: {nombre}")
-            if celular and celular.lower() != "numero_cliente":
+            lineas = ["¡Hola! Vengo desde la página web con Camila para registrarme como cliente y coordinar compras:"]
+            if razon_social:
+                lineas.append(f"• Razón Social / Negocio: {razon_social}")
+            if rut:
+                lineas.append(f"• RUT: {rut}")
+            if celular:
                 lineas.append(f"• Celular: {celular}")
-            if direccion and direccion.lower() != "direccion_cliente":
-                lineas.append(f"• Dirección / Negocio: {direccion}")
-            lineas.append("Quisiera coordinar para ser cliente y hacer pedidos mayoristas con el vendedor.")
+            if direccion:
+                lineas.append(f"• Dirección / Sector: {direccion}")
+            if correo:
+                lineas.append(f"• Correo: {correo}")
+            lineas.append("Por favor coordinar alta de cliente y visita/contacto del vendedor.")
 
             wa_text = urllib.parse.quote("\n".join(lineas))
             whatsapp_url = f"https://wa.me/{WHATSAPP_NUMBER}?text={wa_text}"
