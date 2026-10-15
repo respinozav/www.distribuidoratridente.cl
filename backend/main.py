@@ -252,7 +252,8 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente, d
 ## Sobre Distribuidora Tridente
 - Distribuidora mayorista en la Región de Coquimbo (La Serena, Coquimbo, Ovalle, Vicuña y alrededores).
 - Productos principales: confites, chocolates, galletas, snacks, bebidas, jugos, abarrotes, tabacos, papeles y filtros OCB, vaporizadores, encendedores.
-- Catálogo completo con fotos y precios: https://pedidos.distribuidoratridente.cl/Public/Catalogo
+- Cotizador web oficial con descarga inmediata de PDF (vigencia garantizada por 72 horas): https://www.distribuidoratridente.cl/cotizar/
+- Catálogo oficial completo con fotos y precios vigentes: https://pedidos.distribuidoratridente.cl/Public/Catalogo
 - Horario de atención: Lunes a viernes de 09:00 a 18:00 hrs.
 
 ## REGLAS DE CONVERSACIÓN
@@ -262,13 +263,13 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente, d
    PROHIBIDO agregar frases rebuscadas como "¿qué andas buscando para tu negocio hoy?". Mantén el saludo inicial simple, humano y directo.
 2. Si te dicen su nombre o se presentan:
    Saluda con amabilidad: "¡Hola [Nombre]! Mucho gusto, cuéntame en qué te puedo ayudar".
-3. Si preguntan qué productos tienes, qué vendes, lista de precios, presupuestos o si quieren armar una cotización:
-   Ofréceles proactivamente el cotizador web público y el catálogo:
-   "¡Hola! Claro que sí, puedes armar tu cotización al instante con los precios oficiales y vigentes directamente en nuestro cotizador web: https://www.distribuidoratridente.cl/cotizar. Allí seleccionas los productos que necesitas y descargas tu comprobante formal en PDF con vigencia garantizada por 72 horas."
-   (Si solo piden catálogo general, también compárteles https://pedidos.distribuidoratridente.cl/Public/Catalogo).
-4. Si preguntan por un producto específico:
+3. Si preguntan por precios, lista de precios, qué productos tienes, qué vendes, presupuestos o si quieren armar una cotización:
+   Ofréceles proactivamente el cotizador web público y/o el catálogo completo:
+   "¡Hola! Claro que sí, puedes revisar todos nuestros productos y precios en el catálogo online https://pedidos.distribuidoratridente.cl/Public/Catalogo o armar tu cotización al instante con precios oficiales y vigencia de 72 horas en nuestro cotizador web: https://www.distribuidoratridente.cl/cotizar/ 😊"
+4. Si preguntan por el precio de un producto específico (ej: "¿a cuánto tienen el chocolate?", "¿precio de las galletas?"):
    Revisa los datos del sistema adjuntos e informa el precio claro y directo en 1 línea.
-   Si no está: "Ese producto justo no lo tengo disponible en el sistema en este momento, pero puedes revisar el catálogo online https://pedidos.distribuidoratridente.cl/Public/Catalogo o decirme si te sirve alguna alternativa similar 😊".
+   Además, invítalo cordialmente a cotizarlo en https://www.distribuidoratridente.cl/cotizar/ o revisar más opciones en el catálogo online https://pedidos.distribuidoratridente.cl/Public/Catalogo.
+   Si no está disponible: "Ese producto justo no lo tengo disponible en el sistema en este momento, pero puedes revisar el catálogo online https://pedidos.distribuidoratridente.cl/Public/Catalogo o cotizar directamente en https://www.distribuidoratridente.cl/cotizar/ 😊".
 5. Si preguntan cómo comprar, cómo ser cliente, cómo registrarse, hacer un pedido, o cuando se va a cerrar la venta/contacto con un cliente nuevo:
    Pide amablemente los 5 datos necesarios para coordinar su primera compra y registrarlo como cliente:
    "¡Excelente! Para coordinar tu primera compra y registrarte como cliente, necesito que me compartas los siguientes datos:
@@ -372,10 +373,14 @@ def chat(req: ChatRequest):
     terms = extract_search_terms(user_text)
     db_context = ""
 
-    # Si pregunta por cotizaciones o presupuestos
-    is_cotizar_q = any(
+    # Si pregunta por precios, cotizaciones, presupuestos o catálogo
+    is_price_or_cotizar_q = any(
         phrase in user_lower
-        for phrase in ["cotizar", "cotizacion", "cotización", "presupuesto", "armar cotizacion", "hacer cotizacion", "cotizador"]
+        for phrase in [
+            "precio", "precios", "cuanto vale", "cuánto vale", "cuanto cuesta", "cuánto cuesta",
+            "valor", "valores", "cotizar", "cotizacion", "cotización", "presupuesto",
+            "armar cotizacion", "hacer cotizacion", "cotizador", "lista de precios", "catalogo", "catálogo"
+        ]
     )
     # Si pregunta por categorías o productos en general
     is_general_products_q = any(
@@ -383,11 +388,11 @@ def chat(req: ChatRequest):
         for phrase in ["que productos", "qué productos", "que vendes", "qué vendes", "que tienes", "qué tienes", "categorias", "categorías"]
     )
 
-    if is_cotizar_q:
-        db_context = "\n\n[COTIZADOR WEB OFICIAL: Disponemos de un cotizador web público en https://www.distribuidoratridente.cl/cotizar donde el cliente puede seleccionar productos con precios vigentes y descargar al instante su cotización formal en PDF válida por 72 horas]."
+    if is_price_or_cotizar_q and not terms:
+        db_context = "\n\n[COTIZADOR Y CATÁLOGO OFICIAL: Puedes ofrecer el cotizador web público en https://www.distribuidoratridente.cl/cotizar/ (donde seleccionan productos con precios oficiales y descargan su cotización en PDF válida por 72 horas) y el catálogo completo en https://pedidos.distribuidoratridente.cl/Public/Catalogo]."
     elif is_general_products_q:
         categorias = get_all_categorias()
-        db_context = f"\n\n[DATOS DE BASE DE DATOS: Categorías activas de la distribuidora: {', '.join(categorias)}. Cotizador web en https://www.distribuidoratridente.cl/cotizar y Catálogo completo en https://pedidos.distribuidoratridente.cl/Public/Catalogo]"
+        db_context = f"\n\n[DATOS DE BASE DE DATOS: Categorías activas de la distribuidora: {', '.join(categorias)}. Cotizador web en https://www.distribuidoratridente.cl/cotizar/ y Catálogo completo en https://pedidos.distribuidoratridente.cl/Public/Catalogo]"
     elif terms:
         # Buscar productos usando los términos extraídos
         found_products = []
@@ -404,9 +409,10 @@ def chat(req: ChatRequest):
             db_context = (
                 f"\n\n[DATOS DE BASE DE DATOS (tabla {DB_SCHEMA}.productos)]:\n"
                 + json.dumps(found_products[:12], ensure_ascii=False, default=str)
+                + "\n(Informa el precio claro. Puedes invitarlo además a cotizar en https://www.distribuidoratridente.cl/cotizar/ o ver el catálogo en https://pedidos.distribuidoratridente.cl/Public/Catalogo)"
             )
         else:
-            db_context = f"\n\n[DATOS DE BASE DE DATOS: No se encontraron productos coincidentes para: '{', '.join(terms)}'. Sugiere revisar el catálogo https://pedidos.distribuidoratridente.cl/Public/Catalogo]"
+            db_context = f"\n\n[DATOS DE BASE DE DATOS: No se encontraron productos coincidentes para: '{', '.join(terms)}'. Sugiere revisar el catálogo oficial https://pedidos.distribuidoratridente.cl/Public/Catalogo o cotizar en https://www.distribuidoratridente.cl/cotizar/]"
 
     # ── Construir historial para Gemini ──
     contents = list(history)
