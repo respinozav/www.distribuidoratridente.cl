@@ -1,424 +1,412 @@
 /**
  * ============================================================================
- * DISTRIBUIDORA TRIDENTE - COTIZADOR WEB PÚBLICO
- * Vigencia fija de 72 Horas y Descarga Exclusiva en PDF
+ * DISTRIBUIDORA TRIDENTE - COTIZADOR OFICIAL WEB PÚBLICO
+ * Generación de Cotizaciones Formales con Descarga Exclusiva en PDF (72 Horas)
+ * Diseño Idéntico al Comprobante Oficial de Pedidos Tridente
  * ============================================================================
  */
 
 (function () {
   'use strict';
 
-  // Configuración
-  const API_BASE = 'https://camila.distribuidoratridente.cl';
-  const ITEMS_PER_PAGE = 24;
-
-  // Estado del Cotizador
+  // ─── Estado Global del Cotizador ────────────────────────────────────────────
   const state = {
     products: [],
     categories: [],
-    selectedCategory: 'TODAS',
-    searchQuery: '',
-    currentPage: 1,
-    cart: [], // [{ id, codigo, nombre, tipo_empaque, cantidad_caja, precio_unitario, cantidad, afecto, imagen_url }]
+    cart: [],
     client: {
       razonSocial: '',
       rut: '',
-      telefono: '',
       email: '',
+      telefono: '',
       direccion: '',
       observaciones: '',
     },
     clientValid: {
       razonSocial: false,
       rut: false,
-      telefono: false,
       email: false,
+      telefono: false,
       direccion: false,
     },
+    selectedProduct: null,
+    selectedPackaging: 'unidad',
+    selectedQty: 1,
+    filterCategory: '',
+    searchQuery: '',
+    cotFolio: generateFolioCode(),
     isGeneratingPdf: false,
   };
 
-  // ─── Formateador de Moneda Chilena ──────────────────────────────────────────
-  function formatMoney(amount) {
-    return '$' + Math.round(Number(amount) || 0).toLocaleString('es-CL');
+  // ─── Generador de Código de Folio (Ej: COT-605NTA) ──────────────────────────
+  function generateFolioCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const nums = Math.floor(100 + Math.random() * 900);
+    let letters = '';
+    for (let i = 0; i < 3; i++) {
+      letters += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `COT-${nums}${letters}`;
   }
 
-  // ─── Formateador y Validador de RUT Chileno (Módulo 11) ─────────────────────
+  // ─── Utilidades de Formato Monetario Chileno ────────────────────────────────
+  function formatMoney(amount) {
+    const num = Math.round(Number(amount) || 0);
+    return '$' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+
+  // ─── Algoritmo de Módulo 11 Chileno para Validación de RUT ──────────────────
   function cleanRut(rut) {
-    return (rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+    return String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
   }
 
   function formatRut(rut) {
-    const raw = cleanRut(rut);
-    if (!raw) return '';
-    if (raw.length === 1) return raw;
-    const cuerpo = raw.slice(0, -1);
-    const dv = raw.slice(-1);
-    const formattedCuerpo = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return `${formattedCuerpo}-${dv}`;
+    const clean = cleanRut(rut);
+    if (!clean) return '';
+    if (clean.length === 1) return clean;
+    const body = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+    let formattedBody = '';
+    let count = 0;
+    for (let i = body.length - 1; i >= 0; i--) {
+      formattedBody = body[i] + formattedBody;
+      count++;
+      if (count === 3 && i > 0) {
+        formattedBody = '.' + formattedBody;
+        count = 0;
+      }
+    }
+    return `${formattedBody}-${dv}`;
   }
 
   function validateRut(rut) {
-    const raw = cleanRut(rut);
-    if (raw.length < 2) return false;
-    const cuerpo = raw.slice(0, -1);
-    const dv = raw.slice(-1);
-    if (!/^\d+$/.test(cuerpo)) return false;
+    const clean = cleanRut(rut);
+    if (clean.length < 2) return false;
+    const body = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+    if (!/^\d+$/.test(body)) return false;
 
-    let suma = 0;
-    let multiplo = 2;
-    for (let i = cuerpo.length - 1; i >= 0; i--) {
-      suma += multiplo * parseInt(cuerpo.charAt(i), 10);
-      multiplo = multiplo < 7 ? multiplo + 1 : 2;
+    let sum = 0;
+    let multiplier = 2;
+    for (let i = body.length - 1; i >= 0; i--) {
+      sum += parseInt(body[i], 10) * multiplier;
+      multiplier = multiplier === 7 ? 2 : multiplier + 1;
     }
-    const dvEsperado = 11 - (suma % 11);
-    const dvCalc = dvEsperado === 11 ? '0' : dvEsperado === 10 ? 'K' : dvEsperado.toString();
-    return dvCalc === dv;
+    const expectedDvNum = 11 - (sum % 11);
+    let expectedDv = '0';
+    if (expectedDvNum === 11) expectedDv = '0';
+    else if (expectedDvNum === 10) expectedDv = 'K';
+    else expectedDv = String(expectedDvNum);
+
+    return dv === expectedDv;
   }
 
-  // ─── Fechas y Vigencia de 72 Horas ──────────────────────────────────────────
-  function getValidityTimes(now = new Date()) {
-    const expiry = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+  // ─── Regla Estricta de Vigencia de 72 Horas ─────────────────────────────────
+  function getValidityTimes() {
+    const now = new Date();
+    const expires = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+
     const pad = (n) => String(n).padStart(2, '0');
-    const formatDate = (d) => `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
-    const formatTime = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    const day = pad(now.getDate());
+    const month = pad(now.getMonth() + 1);
+    const year = now.getFullYear();
+    const hours = pad(now.getHours());
+    const mins = pad(now.getMinutes());
+
+    const expDay = pad(expires.getDate());
+    const expMonth = pad(expires.getMonth() + 1);
+    const expYear = expires.getFullYear();
+    const expHours = pad(expires.getHours());
+    const expMins = pad(expires.getMinutes());
 
     return {
-      issuedAt: now,
-      expiresAt: expiry,
-      issuedText: `${formatDate(now)} a las ${formatTime(now)} hrs`,
-      expiresText: `${formatDate(expiry)} a las ${formatTime(expiry)} hrs`,
-      bannerText: `⏱️ Cotización válida por 72 horas (hasta el ${formatDate(expiry)} a las ${formatTime(expiry)} hrs)`,
+      issuedDate: `${day}-${month}-${year}`,
+      issuedTime: `${hours}:${mins}`,
+      issuedFull: `${day}-${month}-${year} ${hours}:${mins}`,
+      expiresDate: `${expDay}-${expMonth}-${expYear}`,
+      expiresTime: `${expHours}:${expMins}`,
+      expiresFull: `${expDay}-${expMonth}-${expYear} ${expHours}:${expMins}`,
+      expiresText: `${expDay}-${expMonth}-${expYear} a las ${expHours}:${expMins} hrs`,
     };
   }
 
-  // ─── Persistencia Local del Carrito ─────────────────────────────────────────
-  function saveCart() {
-    try {
-      sessionStorage.setItem('tridente_cot_cart', JSON.stringify(state.cart));
-      sessionStorage.setItem('tridente_cot_client', JSON.stringify(state.client));
-    } catch (e) {}
-  }
-
-  function loadCart() {
-    try {
-      const savedCart = sessionStorage.getItem('tridente_cot_cart');
-      if (savedCart) state.cart = JSON.parse(savedCart);
-      const savedClient = sessionStorage.getItem('tridente_cot_client');
-      if (savedClient) state.client = JSON.parse(savedClient);
-    } catch (e) {}
-  }
-
-  // ─── Cálculos Financieros Exactos ───────────────────────────────────────────
+  // ─── Cálculo Financiero Exacto (Neto, Exento, IVA 19%, Total) ───────────────
   function computeTotals() {
-    let totalNeto = 0;
-    let totalExento = 0;
-    let totalIva = 0;
-    let totalFinal = 0;
+    let subtotalAfectoBruto = 0;
+    let subtotalExento = 0;
     let totalUnidades = 0;
-    let totalCajas = 0;
 
     state.cart.forEach((item) => {
       const lineTotal = item.precio_unitario * item.cantidad;
-      totalFinal += lineTotal;
-
-      if (item.tipo_empaque === 'caja') {
-        totalCajas += item.cantidad;
+      if (item.tipo_empaque === 'caja' && item.cantidad_caja) {
+        totalUnidades += item.cantidad * item.cantidad_caja;
       } else {
         totalUnidades += item.cantidad;
       }
 
       if (item.afecto) {
-        // En productos afectos, el precio de lista incluye IVA
-        const neto = Math.round(lineTotal / 1.19);
-        const iva = lineTotal - neto;
-        totalNeto += neto;
-        totalIva += iva;
+        subtotalAfectoBruto += lineTotal;
       } else {
-        // Producto exento de IVA (ej. tabacos)
-        totalExento += lineTotal;
+        subtotalExento += lineTotal;
       }
     });
 
+    const subtotalNeto = Math.round(subtotalAfectoBruto / 1.19);
+    const iva19 = subtotalAfectoBruto - subtotalNeto;
+    const totalFinal = subtotalAfectoBruto + subtotalExento;
+
     return {
-      totalNeto,
-      totalExento,
-      totalIva,
-      totalFinal,
-      totalUnidades,
-      totalCajas,
       itemsCount: state.cart.length,
+      unidadesCount: totalUnidades,
+      subtotalNeto,
+      subtotalExento,
+      iva19,
+      totalFinal,
     };
   }
 
-  // ─── Renderizado de la Vigencia ─────────────────────────────────────────────
-  function updateVigenciaBanners() {
-    const v = getValidityTimes();
-    const heroBanner = document.getElementById('heroVigenciaText');
-    if (heroBanner) heroBanner.textContent = v.bannerText;
-
-    const sidebarEmision = document.getElementById('summaryEmisionTime');
-    if (sidebarEmision) sidebarEmision.textContent = v.issuedText;
-
-    const sidebarVence = document.getElementById('summaryVenceTime');
-    if (sidebarVence) sidebarVence.textContent = v.expiresText;
-  }
-
-  // ─── Renderizado del Selector de Categorías ──────────────────────────────────
-  function renderCategories() {
-    const container = document.getElementById('categoryPills');
+  // ─── Notificaciones Toast ───────────────────────────────────────────────────
+  function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
     if (!container) return;
 
-    const allCount = state.products.length;
-    let html = `
-      <button type="button" class="category-pill ${state.selectedCategory === 'TODAS' ? 'active' : ''}" data-cat="TODAS">
-        Todas <span class="pill-count">${allCount}</span>
-      </button>
-    `;
+    const toast = document.createElement('div');
+    toast.className = `cot-toast toast-${type}`;
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    if (type === 'error') icon = '❌';
+    if (type === 'warning') icon = '⚠️';
 
-    state.categories.forEach((cat) => {
-      const count = state.products.filter((p) => (p.categoria || '').toUpperCase() === cat.toUpperCase()).length;
-      html += `
-        <button type="button" class="category-pill ${state.selectedCategory === cat ? 'active' : ''}" data-cat="${cat}">
-          ${cat} <span class="pill-count">${count}</span>
-        </button>
-      `;
-    });
+    toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+    container.appendChild(toast);
 
-    container.innerHTML = html;
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(16px)';
+      toast.style.transition = 'all 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 3200);
+  }
 
-    container.querySelectorAll('.category-pill').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.selectedCategory = btn.getAttribute('data-cat');
-        state.currentPage = 1;
-        renderCategories();
-        renderProducts();
+  // ─── Inicialización y Carga de Catálogo ──────────────────────────────────────
+  async function loadCatalog() {
+    const countEl = document.getElementById('selectorCatalogCount');
+
+    // 1. Fallback inmediato desde assets precompilados
+    if (typeof window.TRIDENTE_CATALOG !== 'undefined' && Array.isArray(window.TRIDENTE_CATALOG.products)) {
+      state.products = window.TRIDENTE_CATALOG.products;
+      state.categories = window.TRIDENTE_CATALOG.categories || [];
+      populateCategorySelect();
+      populateProductSelect();
+      if (countEl) countEl.textContent = `${state.products.length} productos disponibles`;
+    }
+
+    // 2. Sincronización en vivo con API FastAPI
+    try {
+      const [resProd, resCat] = await Promise.all([
+        fetch('https://camila.distribuidoratridente.cl/api/productos', { cache: 'no-cache' }),
+        fetch('https://camila.distribuidoratridente.cl/api/categorias', { cache: 'no-cache' }),
+      ]);
+
+      if (resProd.ok) {
+        const liveProducts = await resProd.json();
+        if (Array.isArray(liveProducts) && liveProducts.length > 0) {
+          state.products = liveProducts;
+        }
+      }
+
+      if (resCat.ok) {
+        const liveCats = await resCat.json();
+        if (Array.isArray(liveCats) && liveCats.length > 0) {
+          state.categories = liveCats;
+        }
+      }
+
+      populateCategorySelect();
+      populateProductSelect();
+      if (countEl) countEl.textContent = `${state.products.length} productos disponibles`;
+    } catch (err) {
+      console.warn('Cargando con catálogo local en caché:', err);
+    }
+  }
+
+  // ─── Poblado de Select de Categorías ────────────────────────────────────────
+  function populateCategorySelect() {
+    const select = document.getElementById('selectCategoria');
+    if (!select) return;
+
+    let currentVal = select.value;
+    select.innerHTML = '<option value="">Todas las Categorías</option>';
+
+    // Extraer categorías únicas si no vienen en el array
+    let cats = state.categories;
+    if (!cats || cats.length === 0) {
+      const set = new Set();
+      state.products.forEach((p) => {
+        if (p.categoria) set.add(p.categoria);
       });
+      cats = Array.from(set).sort();
+    }
+
+    cats.forEach((cat) => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      if (cat === currentVal) opt.selected = true;
+      select.appendChild(opt);
     });
   }
 
-  // ─── Filtrado y Renderizado del Catálogo de Productos ─────────────────────────
+  // ─── Poblado Dinámico de Select de Productos (Filtrado por Cat y Búsqueda) ───
   function getFilteredProducts() {
-    let list = state.products;
+    const cat = (state.filterCategory || '').toLowerCase().trim();
+    const query = (state.searchQuery || '').toLowerCase().trim();
 
-    if (state.selectedCategory !== 'TODAS') {
-      list = list.filter((p) => (p.categoria || '').toUpperCase() === state.selectedCategory.toUpperCase());
-    }
-
-    if (state.searchQuery.trim()) {
-      const q = state.searchQuery.trim().toLowerCase();
-      list = list.filter((p) => {
-        const nom = (p.nombre || '').toLowerCase();
-        const cod = (p.codigo || '').toLowerCase();
-        const cat = (p.categoria || '').toLowerCase();
-        return nom.includes(q) || cod.includes(q) || cat.includes(q);
-      });
-    }
-
-    return list;
+    return state.products.filter((p) => {
+      // Filtro de categoría
+      if (cat) {
+        const pCat = (p.categoria || '').toLowerCase();
+        if (pCat !== cat) return false;
+      }
+      // Filtro de búsqueda
+      if (query) {
+        const nameMatch = (p.nombre || '').toLowerCase().includes(query);
+        const skuMatch = String(p.codigo || '').toLowerCase().includes(query);
+        if (!nameMatch && !skuMatch) return false;
+      }
+      return true;
+    });
   }
 
-  function renderProducts() {
-    const grid = document.getElementById('productsGrid');
-    const countLabel = document.getElementById('catalogResultsCount');
-    if (!grid) return;
+  function populateProductSelect() {
+    const select = document.getElementById('selectProducto');
+    if (!select) return;
 
     const filtered = getFilteredProducts();
-    if (countLabel) countLabel.textContent = `${filtered.length} productos disponibles`;
+    const prevSelectedId = state.selectedProduct ? state.selectedProduct.id : '';
 
-    if (filtered.length === 0) {
-      grid.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1rem; color: #64748b;">
-          <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
-          <p style="font-size: 1.05rem; font-weight: 600; color: #1e293b;">No se encontraron productos coincidentes</p>
-          <p style="font-size: 0.88rem;">Intenta con otro término de búsqueda o selecciona otra categoría.</p>
-        </div>
-      `;
-      renderPagination(0);
+    select.innerHTML = '';
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = filtered.length > 0
+      ? `-- Elige un producto de la lista (${filtered.length} encontrados) --`
+      : '-- No se encontraron productos coincidentes --';
+    select.appendChild(defaultOpt);
+
+    filtered.forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      const sku = p.codigo ? `[${p.codigo}]` : '';
+      const precio = formatMoney(p.precio_unitario);
+      opt.textContent = `${p.nombre} ${sku} - ${precio}`;
+      if (p.id === prevSelectedId) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+
+    // Si había un producto seleccionado pero ya no está en el filtro, ocultar preview
+    if (prevSelectedId) {
+      const stillThere = filtered.some((p) => p.id === prevSelectedId);
+      if (!stillThere) {
+        state.selectedProduct = null;
+        updateProductPreviewCard();
+      }
+    }
+  }
+
+  // ─── Actualización de la Ficha / Preview del Producto Seleccionado ──────────
+  function updateProductPreviewCard() {
+    const card = document.getElementById('selectedProductCard');
+    if (!card) return;
+
+    const prod = state.selectedProduct;
+    if (!prod) {
+      card.style.display = 'none';
       return;
     }
 
-    const startIndex = (state.currentPage - 1) * ITEMS_PER_PAGE;
-    const pageItems = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    card.style.display = 'flex';
 
-    let html = '';
-    pageItems.forEach((p) => {
-      const hasCaja = p.tiene_caja && p.precio_caja > 0 && p.cantidad_caja > 0;
-      const afectoClass = p.afecto ? 'afecto' : 'exento';
-      const afectoLabel = p.afecto ? 'Afecto 19% IVA' : 'Exento de IVA';
+    // Imagen del producto
+    const imgEl = document.getElementById('cardProductImg');
+    if (imgEl) {
+      if (prod.imagen_url) {
+        imgEl.src = prod.imagen_url.startsWith('http')
+          ? prod.imagen_url
+          : `https://camila.distribuidoratridente.cl${prod.imagen_url}`;
+      } else {
+        imgEl.src = 'img/logo-tridente-pdf.png';
+      }
+      imgEl.alt = prod.nombre;
+    }
 
-      // SVG fallback estilizado para productos sin imagen
-      const imgHtml = p.imagen_url
-        ? `<img src="${p.imagen_url}" alt="${p.nombre}" class="product-img" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-           <div class="product-img-fallback" style="display:none;">
-             <svg width="36" height="36" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6c-.55 0-1-.45-1-1V6c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v12c0 .55-.45 1-1 1zm-4.44-6.19l-2.35 3.02-1.56-1.88c-.2-.25-.58-.25-.78 0l-1.74 2.23c-.26.33-.02.82.4.82h8.93c.41 0 .65-.48.4-.81l-2.52-3.38c-.19-.26-.58-.26-.78 0z"/></svg>
-             <span>Tridente</span>
-           </div>`
-        : `<div class="product-img-fallback">
-             <svg width="36" height="36" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6c-.55 0-1-.45-1-1V6c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v12c0 .55-.45 1-1 1zm-4.44-6.19l-2.35 3.02-1.56-1.88c-.2-.25-.58-.25-.78 0l-1.74 2.23c-.26.33-.02.82.4.82h8.93c.41 0 .65-.48.4-.81l-2.52-3.38c-.19-.26-.58-.26-.78 0z"/></svg>
-             <span>Tridente</span>
-           </div>`;
+    // Textos informativos
+    const nameEl = document.getElementById('cardProductName');
+    const skuEl = document.getElementById('cardProductSku');
+    const catEl = document.getElementById('cardProductCat');
+    const ivaEl = document.getElementById('cardProductIva');
 
-      html += `
-        <div class="product-card" data-id="${p.id}">
-          <div class="product-img-wrap">
-            ${imgHtml}
-          </div>
+    if (nameEl) nameEl.textContent = prod.nombre;
+    if (skuEl) skuEl.textContent = `SKU: ${prod.codigo || 'S/C'}`;
+    if (catEl) catEl.textContent = prod.categoria || 'General';
+    if (ivaEl) {
+      ivaEl.textContent = prod.afecto ? 'Afecto IVA (19%)' : 'Exento de IVA';
+      ivaEl.className = prod.afecto ? 'card-tag iva-tag' : 'card-tag sku-tag';
+    }
 
-          <div class="product-badges-row">
-            <span class="product-sku">SKU: ${p.codigo || 'S/C'}</span>
-            <span class="product-tag-iva ${afectoClass}">${afectoLabel}</span>
-          </div>
+    // Precios y Empaque
+    const priceUnidadEl = document.getElementById('priceTextUnidad');
+    const priceCajaEl = document.getElementById('priceTextCaja');
+    const labelCaja = document.getElementById('labelRadioCaja');
+    const cajaQtyBadge = document.getElementById('cajaQtyBadge');
+    const radioUnidad = document.querySelector('input[name="previewPackaging"][value="unidad"]');
+    const radioCaja = document.querySelector('input[name="previewPackaging"][value="caja"]');
+    const labelUnidad = document.getElementById('labelRadioUnidad');
 
-          <h3 class="product-name" title="${p.nombre}">${p.nombre}</h3>
+    if (priceUnidadEl) priceUnidadEl.textContent = formatMoney(prod.precio_unitario);
 
-          <div class="packaging-selector">
-            <div class="packaging-option">
-              <input type="radio" id="pkg_u_${p.id}" name="pkg_${p.id}" value="unidad" checked />
-              <label for="pkg_u_${p.id}">
-                Por Unidad
-                <span class="packaging-price">${formatMoney(p.precio_unitario)}</span>
-              </label>
-            </div>
-            <div class="packaging-option ${!hasCaja ? 'disabled' : ''}">
-              <input type="radio" id="pkg_c_${p.id}" name="pkg_${p.id}" value="caja" ${!hasCaja ? 'disabled' : ''} />
-              <label for="pkg_c_${p.id}">
-                Caja x${p.cantidad_caja || '-'}
-                <span class="packaging-price">${hasCaja ? formatMoney(p.precio_caja) : 'N/A'}</span>
-              </label>
-            </div>
-          </div>
+    if (prod.tiene_caja && prod.precio_caja > 0) {
+      if (labelCaja) labelCaja.style.display = 'inline-flex';
+      if (cajaQtyBadge) cajaQtyBadge.textContent = `Caja x${prod.cantidad_caja || 1}`;
+      if (priceCajaEl) priceCajaEl.textContent = formatMoney(prod.precio_caja);
+    } else {
+      if (labelCaja) labelCaja.style.display = 'none';
+      state.selectedPackaging = 'unidad';
+      if (radioUnidad) radioUnidad.checked = true;
+      if (labelUnidad) labelUnidad.classList.add('active');
+      if (labelCaja) labelCaja.classList.remove('active');
+    }
 
-          <div class="product-action-row">
-            <div class="qty-control">
-              <button type="button" class="qty-btn btn-qty-minus" aria-label="Disminuir cantidad">−</button>
-              <input type="number" class="qty-input" value="1" min="1" max="999" aria-label="Cantidad" />
-              <button type="button" class="qty-btn btn-qty-plus" aria-label="Aumentar cantidad">+</button>
-            </div>
-
-            <button type="button" class="btn-add-product" data-id="${p.id}">
-              <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-              <span>Agregar</span>
-            </button>
-          </div>
-        </div>
-      `;
-    });
-
-    grid.innerHTML = html;
-    bindProductCardEvents(grid);
-    renderPagination(filtered.length);
+    // Reset cantidad
+    const qtyInput = document.getElementById('inputPreviewQty');
+    if (qtyInput) {
+      qtyInput.value = '1';
+      state.selectedQty = 1;
+    }
   }
 
-  function bindProductCardEvents(container) {
-    container.querySelectorAll('.product-card').forEach((card) => {
-      const pid = card.getAttribute('data-id');
-      const minusBtn = card.querySelector('.btn-qty-minus');
-      const plusBtn = card.querySelector('.btn-qty-plus');
-      const qtyInput = card.querySelector('.qty-input');
-      const addBtn = card.querySelector('.btn-add-product');
-
-      minusBtn.addEventListener('click', () => {
-        let val = parseInt(qtyInput.value, 10) || 1;
-        if (val > 1) qtyInput.value = val - 1;
-      });
-
-      plusBtn.addEventListener('click', () => {
-        let val = parseInt(qtyInput.value, 10) || 1;
-        qtyInput.value = val + 1;
-      });
-
-      qtyInput.addEventListener('change', () => {
-        let val = parseInt(qtyInput.value, 10);
-        if (isNaN(val) || val < 1) qtyInput.value = 1;
-      });
-
-      addBtn.addEventListener('click', () => {
-        const prod = state.products.find((x) => x.id === pid);
-        if (!prod) return;
-
-        const pkgRadio = card.querySelector(`input[name="pkg_${pid}"]:checked`);
-        const tipoEmpaque = pkgRadio ? pkgRadio.value : 'unidad';
-        const cantidad = parseInt(qtyInput.value, 10) || 1;
-
-        addToCart(prod, tipoEmpaque, cantidad);
-
-        // Feedback visual
-        addBtn.classList.add('added-feedback');
-        const origText = addBtn.innerHTML;
-        addBtn.innerHTML = `<span>✓ Agregado</span>`;
-        setTimeout(() => {
-          addBtn.classList.remove('added-feedback');
-          addBtn.innerHTML = origText;
-        }, 1200);
-
-        showToast(`Agregado: ${prod.nombre} (${cantidad} ${tipoEmpaque === 'caja' ? 'caja(s)' : 'unid.'})`, 'success');
-      });
-    });
-  }
-
-  function renderPagination(totalItems) {
-    const container = document.getElementById('catalogPagination');
-    if (!container) return;
-
-    if (totalItems <= ITEMS_PER_PAGE) {
-      container.style.display = 'none';
+  // ─── Agregar Producto al Carro / Cotización ──────────────────────────────────
+  function addCurrentSelectedProduct() {
+    const prod = state.selectedProduct;
+    if (!prod) {
+      showToast('Por favor selecciona un producto primero.', 'warning');
       return;
     }
 
-    container.style.display = 'flex';
-    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
-    const start = (state.currentPage - 1) * ITEMS_PER_PAGE + 1;
-    const end = Math.min(state.currentPage * ITEMS_PER_PAGE, totalItems);
-
-    container.innerHTML = `
-      <div class="pagination-info">
-        Mostrando <strong>${start} - ${end}</strong> de <strong>${totalItems}</strong> productos
-      </div>
-      <div class="pagination-controls">
-        <button type="button" class="pagination-btn" id="pagPrev" ${state.currentPage === 1 ? 'disabled' : ''}>← Anterior</button>
-        <span style="display:flex; align-items:center; font-size:0.85rem; font-weight:700; color:#172B4D; padding:0 8px;">
-          Página ${state.currentPage} de ${totalPages}
-        </span>
-        <button type="button" class="pagination-btn" id="pagNext" ${state.currentPage >= totalPages ? 'disabled' : ''}>Siguiente →</button>
-      </div>
-    `;
-
-    const prevBtn = document.getElementById('pagPrev');
-    const nextBtn = document.getElementById('pagNext');
-
-    if (prevBtn) {
-      prevBtn.addEventListener('click', () => {
-        if (state.currentPage > 1) {
-          state.currentPage--;
-          renderProducts();
-          document.getElementById('productsSection')?.scrollIntoView({ behavior: 'smooth' });
-        }
-      });
-    }
-
-    if (nextBtn) {
-      nextBtn.addEventListener('click', () => {
-        if (state.currentPage < totalPages) {
-          state.currentPage++;
-          renderProducts();
-          document.getElementById('productsSection')?.scrollIntoView({ behavior: 'smooth' });
-        }
-      });
-    }
-  }
-
-  // ─── Gestión de Cotización / Carro ──────────────────────────────────────────
-  function addToCart(prod, tipoEmpaque, cantidad) {
+    const qtyInput = document.getElementById('inputPreviewQty');
+    const cantidad = Math.max(1, parseInt(qtyInput ? qtyInput.value : '1', 10) || 1);
+    const tipoEmpaque = state.selectedPackaging;
     const isCaja = tipoEmpaque === 'caja';
     const unitPrice = isCaja ? prod.precio_caja : prod.precio_unitario;
 
-    const existingIndex = state.cart.findIndex(
+    const existingIdx = state.cart.findIndex(
       (item) => item.id === prod.id && item.tipo_empaque === tipoEmpaque
     );
 
-    if (existingIndex >= 0) {
-      state.cart[existingIndex].cantidad += cantidad;
+    if (existingIdx >= 0) {
+      state.cart[existingIdx].cantidad += cantidad;
     } else {
       state.cart.push({
         id: prod.id,
@@ -433,325 +421,256 @@
       });
     }
 
-    saveCart();
-    renderSummary();
+    // Renderizar tabla y validar
+    renderCotizacionTable();
+    checkDownloadState();
+
+    // Feedback al usuario
+    const empaqueTxt = isCaja ? `Caja(s) x${prod.cantidad_caja || 1}` : 'unid.';
+    showToast(`✓ Agregado: ${prod.nombre} (${cantidad} ${empaqueTxt})`, 'success');
+
+    // Reset cantidad a 1
+    if (qtyInput) qtyInput.value = '1';
+    state.selectedQty = 1;
   }
 
-  function removeFromCart(index) {
-    state.cart.splice(index, 1);
-    saveCart();
-    renderSummary();
-  }
-
-  function updateCartItemQty(index, newQty) {
+  // ─── Modificar / Eliminar Productos de la Tabla ──────────────────────────────
+  function updateCartQty(index, newQty) {
     if (newQty <= 0) {
-      removeFromCart(index);
+      state.cart.splice(index, 1);
     } else {
       state.cart[index].cantidad = newQty;
-      saveCart();
-      renderSummary();
     }
+    renderCotizacionTable();
+    checkDownloadState();
   }
 
-  function clearCart() {
-    if (state.cart.length === 0) return;
-    if (confirm('¿Deseas vaciar todos los productos de la cotización?')) {
-      state.cart = [];
-      saveCart();
-      renderSummary();
-      showToast('Cotización vaciada', 'warning');
-    }
+  function removeCartItem(index) {
+    const item = state.cart[index];
+    state.cart.splice(index, 1);
+    renderCotizacionTable();
+    checkDownloadState();
+    if (item) showToast(`Eliminado: ${item.nombre}`, 'info');
   }
 
-  // ─── Renderizado de la Columna de Resumen ────────────────────────────────────
-  function renderSummary() {
-    const listEl = document.getElementById('summaryItemsList');
-    const badgeEl = document.getElementById('summaryCountBadge');
-    const netEl = document.getElementById('totalsNeto');
-    const exentoRow = document.getElementById('totalsExentoRow');
-    const exentoEl = document.getElementById('totalsExento');
-    const ivaEl = document.getElementById('totalsIva');
-    const finalEl = document.getElementById('totalsFinalAmount');
-    const downloadBtn = document.getElementById('btnDownloadPdf');
+  // ─── Renderizado de la Tabla Idéntica al PDF ─────────────────────────────────
+  function renderCotizacionTable() {
+    const tbody = document.getElementById('cotizacionTableBody');
+    const totalItemsEl = document.getElementById('docTotalItemsText');
+    const totalFinalEl = document.getElementById('docTotalFinal');
+    const netoEl = document.getElementById('docSubtotalNeto');
+    const exentoEl = document.getElementById('docSubtotalExento');
+    const exentoRow = document.getElementById('docExentoRow');
+    const ivaEl = document.getElementById('docSubtotalIva');
 
-    const totals = computeTotals();
-
-    if (badgeEl) badgeEl.textContent = `${totals.itemsCount} productos`;
-
-    if (netEl) netEl.textContent = formatMoney(totals.totalNeto);
-    if (ivaEl) ivaEl.textContent = formatMoney(totals.totalIva);
-    if (finalEl) finalEl.textContent = formatMoney(totals.totalFinal);
-
-    if (exentoRow && exentoEl) {
-      if (totals.totalExento > 0) {
-        exentoRow.style.display = 'flex';
-        exentoEl.textContent = formatMoney(totals.totalExento);
-      } else {
-        exentoRow.style.display = 'none';
-      }
-    }
-
-    if (downloadBtn) {
-      downloadBtn.disabled = state.cart.length === 0 || state.isGeneratingPdf;
-    }
-
-    if (!listEl) return;
+    if (!tbody) return;
 
     if (state.cart.length === 0) {
-      listEl.innerHTML = `
-        <div class="summary-empty-state">
-          <div class="summary-empty-icon">📋</div>
-          <div class="summary-empty-text">
-            <strong>Tu cotización está vacía</strong><br />
-            Explora el catálogo y agrega los productos que necesitas cotizar.
-          </div>
-        </div>
+      tbody.innerHTML = `
+        <tr class="table-empty-row">
+          <td colspan="6">
+            <div class="table-empty-box">
+              <span class="table-empty-icon">📋</span>
+              <strong>Aún no has agregado productos a tu cotización</strong>
+              <span>Selecciona una categoría o producto arriba y haz clic en "➕ Agregar a la Cotización".</span>
+            </div>
+          </td>
+        </tr>
       `;
+      if (totalItemsEl) totalItemsEl.textContent = 'Total productos: 0 ítems (0 un.)';
+      if (totalFinalEl) totalFinalEl.textContent = '$0';
+      if (netoEl) netoEl.textContent = '$0';
+      if (exentoEl) exentoEl.textContent = '$0';
+      if (exentoRow) exentoRow.style.display = 'none';
+      if (ivaEl) ivaEl.textContent = '$0';
       return;
     }
 
     let html = '';
     state.cart.forEach((item, index) => {
-      const empaqueLabel = item.tipo_empaque === 'caja' ? `Caja x${item.cantidad_caja || '-'}` : 'Unidad';
-      const itemSubtotal = item.precio_unitario * item.cantidad;
+      const subtotal = item.precio_unitario * item.cantidad;
+      const empaqueBadge = item.tipo_empaque === 'caja'
+        ? `cja. (x${item.cantidad_caja || 1} un.)`
+        : 'un.';
+      const ivaLabel = item.afecto ? 'Afecto' : 'Exento';
+
+      const imgSrc = item.imagen_url
+        ? (item.imagen_url.startsWith('http') ? item.imagen_url : `https://camila.distribuidoratridente.cl${item.imagen_url}`)
+        : 'img/logo-tridente-pdf.png';
 
       html += `
-        <div class="summary-item-row" data-index="${index}">
-          <div class="summary-item-info">
-            <div class="summary-item-name" title="${item.nombre}">${item.nombre}</div>
-            <div class="summary-item-meta">
-              <span>SKU: ${item.codigo}</span>
-              <span>•</span>
-              <span style="font-weight:600; color:#172B4D;">${empaqueLabel}</span>
-              <span>•</span>
-              <span>${formatMoney(item.precio_unitario)}</span>
-            </div>
-          </div>
-
-          <div class="summary-item-pricing">
-            <div class="summary-item-total">${formatMoney(itemSubtotal)}</div>
-            <div class="summary-item-actions">
-              <div class="qty-control" style="height: 26px;">
-                <button type="button" class="qty-btn btn-cart-minus" data-index="${index}" style="width:20px; font-size:0.9rem;">−</button>
-                <span style="padding:0 6px; font-size:0.8rem; font-weight:700;">${item.cantidad}</span>
-                <button type="button" class="qty-btn btn-cart-plus" data-index="${index}" style="width:20px; font-size:0.9rem;">+</button>
+        <tr>
+          <td class="col-producto">
+            <div class="table-product-cell">
+              <img
+                src="${imgSrc}"
+                alt="${item.nombre}"
+                class="table-product-thumb"
+                onerror="this.onerror=null; this.src='img/logo-tridente-pdf.png';"
+              />
+              <div class="table-product-info">
+                <span class="table-product-title">${item.nombre} [${item.codigo}]</span>
+                <span class="table-product-sku">Empaque: ${item.tipo_empaque === 'caja' ? `Caja x${item.cantidad_caja}` : 'Unidad'}</span>
               </div>
-              <button type="button" class="btn-remove-item" data-index="${index}" title="Eliminar producto" aria-label="Eliminar producto">
-                🗑️
-              </button>
             </div>
-          </div>
-        </div>
+          </td>
+
+          <td class="col-cantidad">
+            <div class="table-qty-control">
+              <button type="button" class="btn-mini-qty btn-table-minus" data-index="${index}" title="Restar 1">−</button>
+              <strong style="min-width: 28px; text-align: center;">${item.cantidad}</strong>
+              <button type="button" class="btn-mini-qty btn-table-plus" data-index="${index}" title="Sumar 1">+</button>
+              <span style="font-size:0.75rem; color:#64748b; margin-left:4px;">${empaqueBadge}</span>
+            </div>
+          </td>
+
+          <td class="col-iva">
+            <span style="font-size:0.85rem; color:${item.afecto ? '#15803d' : '#475569'}; font-weight:600;">
+              ${ivaLabel}
+            </span>
+          </td>
+
+          <td class="col-unitario">
+            ${formatMoney(item.precio_unitario)}
+          </td>
+
+          <td class="col-subtotal">
+            ${formatMoney(subtotal)}
+          </td>
+
+          <td class="col-accion">
+            <button type="button" class="btn-table-del" data-index="${index}" title="Eliminar producto" aria-label="Eliminar producto">
+              🗑️
+            </button>
+          </td>
+        </tr>
       `;
     });
 
-    listEl.innerHTML = html;
+    tbody.innerHTML = html;
 
-    listEl.querySelectorAll('.btn-cart-minus').forEach((btn) => {
+    // Enlazar eventos de botones en la tabla
+    tbody.querySelectorAll('.btn-table-minus').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.getAttribute('data-index'), 10);
-        updateCartItemQty(idx, state.cart[idx].cantidad - 1);
+        updateCartQty(idx, state.cart[idx].cantidad - 1);
       });
     });
 
-    listEl.querySelectorAll('.btn-cart-plus').forEach((btn) => {
+    tbody.querySelectorAll('.btn-table-plus').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.getAttribute('data-index'), 10);
-        updateCartItemQty(idx, state.cart[idx].cantidad + 1);
+        updateCartQty(idx, state.cart[idx].cantidad + 1);
       });
     });
 
-    listEl.querySelectorAll('.btn-remove-item').forEach((btn) => {
+    tbody.querySelectorAll('.btn-table-del').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.getAttribute('data-index'), 10);
-        removeFromCart(idx);
+        removeCartItem(idx);
       });
     });
+
+    // Totales calculados
+    const totals = computeTotals();
+    if (totalItemsEl) {
+      totalItemsEl.textContent = `Total productos: ${totals.itemsCount} ítems (${totals.unidadesCount} un.)`;
+    }
+    if (totalFinalEl) totalFinalEl.textContent = formatMoney(totals.totalFinal);
+    if (netoEl) netoEl.textContent = formatMoney(totals.subtotalNeto);
+    if (ivaEl) ivaEl.textContent = formatMoney(totals.iva19);
+
+    if (totals.subtotalExento > 0 && exentoRow && exentoEl) {
+      exentoRow.style.display = 'block';
+      exentoEl.textContent = formatMoney(totals.subtotalExento);
+    } else if (exentoRow) {
+      exentoRow.style.display = 'none';
+    }
   }
 
-  // ─── Validación del Formulario de Cliente Nuevo ──────────────────────────────
-  function initClientForm() {
-    const razonSocialInput = document.getElementById('clientRazonSocial');
+  // ─── Validación y Habilitación del Botón de Descarga PDF ────────────────────
+  function checkDownloadState() {
+    const downloadBtn = document.getElementById('btnDownloadPdf');
+    const alertBox = document.getElementById('downloadStateAlert');
+
+    const rsInput = document.getElementById('clientRazonSocial');
     const rutInput = document.getElementById('clientRut');
-    const rutError = document.getElementById('clientRutError');
     const telInput = document.getElementById('clientTelefono');
-    const emailInput = document.getElementById('clientEmail');
+    const mailInput = document.getElementById('clientEmail');
     const dirInput = document.getElementById('clientDireccion');
-    const obsInput = document.getElementById('clientObservaciones');
 
-    // Restaurar valores si existen en sesión
-    if (state.client.razonSocial && razonSocialInput) razonSocialInput.value = state.client.razonSocial;
-    if (state.client.rut && rutInput) rutInput.value = state.client.rut;
-    if (state.client.telefono && telInput) telInput.value = state.client.telefono;
-    if (state.client.email && emailInput) emailInput.value = state.client.email;
-    if (state.client.direccion && dirInput) dirInput.value = state.client.direccion;
-    if (state.client.observaciones && obsInput) obsInput.value = state.client.observaciones;
+    const rsVal = (rsInput ? rsInput.value : '').trim();
+    const rutVal = (rutInput ? rutInput.value : '').trim();
+    const telVal = (telInput ? telInput.value : '').trim();
+    const mailVal = (mailInput ? mailInput.value : '').trim();
+    const dirVal = (dirInput ? dirInput.value : '').trim();
 
-    // Razón Social
-    razonSocialInput?.addEventListener('input', (e) => {
-      const val = e.target.value.trim();
-      state.client.razonSocial = val;
-      state.clientValid.razonSocial = val.length >= 3;
-      toggleValidationState(razonSocialInput, state.clientValid.razonSocial);
-      saveCart();
-    });
+    const isRsValid = rsVal.length >= 3;
+    const isRutValid = validateRut(rutVal);
+    const isTelValid = telVal.replace(/\D/g, '').length >= 8;
+    const isMailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailVal);
+    const isDirValid = dirVal.length >= 5;
+    const hasProducts = state.cart.length > 0;
 
-    // RUT con autoformateo y validación de módulo 11
-    rutInput?.addEventListener('input', (e) => {
-      const formatted = formatRut(e.target.value);
-      e.target.value = formatted;
-      state.client.rut = formatted;
+    const allValid = isRsValid && isRutValid && isTelValid && isMailValid && isDirValid && hasProducts;
 
-      const isValid = validateRut(formatted);
-      state.clientValid.rut = isValid;
-      toggleValidationState(rutInput, isValid);
+    if (downloadBtn) {
+      downloadBtn.disabled = !allValid;
+    }
 
-      if (rutError) {
-        if (!formatted) {
-          rutError.textContent = 'Ingresa el RUT de la empresa o comerciante.';
-          rutError.className = 'cot-help-text';
-        } else if (isValid) {
-          rutError.textContent = '✓ RUT chileno válido.';
-          rutError.className = 'cot-help-text text-success';
-        } else {
-          rutError.textContent = '⚠️ RUT inválido. Verifica los números y dígito verificador.';
-          rutError.className = 'cot-help-text text-error';
-        }
+    if (alertBox) {
+      if (allValid) {
+        alertBox.className = 'download-state-alert is-ready';
+        alertBox.innerHTML = `
+          <span class="alert-icon">✅</span>
+          <span class="alert-text"><strong>¡Todo listo!</strong> Todos los datos comerciales están completos y tienes ${state.cart.length} producto(s) en la cotización. Ya puedes descargar tu PDF.</span>
+        `;
+      } else {
+        alertBox.className = 'download-state-alert';
+        let missing = [];
+        if (!isRsValid) missing.push('Razón Social');
+        if (!isRutValid) missing.push('RUT válido');
+        if (!isMailValid) missing.push('Correo');
+        if (!isTelValid) missing.push('Teléfono');
+        if (!isDirValid) missing.push('Dirección');
+        if (!hasProducts) missing.push('al menos 1 producto');
+
+        alertBox.innerHTML = `
+          <span class="alert-icon">⚠️</span>
+          <span class="alert-text">Falta para habilitar la descarga: <strong>${missing.join(', ')}</strong>.</span>
+        `;
       }
-      saveCart();
-    });
+    }
 
-    // Teléfono
-    telInput?.addEventListener('input', (e) => {
-      const val = e.target.value.trim();
-      state.client.telefono = val;
-      state.clientValid.telefono = val.replace(/\D/g, '').length >= 8;
-      toggleValidationState(telInput, state.clientValid.telefono);
-      saveCart();
-    });
-
-    // Email
-    emailInput?.addEventListener('input', (e) => {
-      const val = e.target.value.trim();
-      state.client.email = val;
-      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-      state.clientValid.email = isEmail;
-      toggleValidationState(emailInput, isEmail);
-      saveCart();
-    });
-
-    // Dirección
-    dirInput?.addEventListener('input', (e) => {
-      const val = e.target.value.trim();
-      state.client.direccion = val;
-      state.clientValid.direccion = val.length >= 5;
-      toggleValidationState(dirInput, state.clientValid.direccion);
-      saveCart();
-    });
-
-    // Observaciones
-    obsInput?.addEventListener('input', (e) => {
-      state.client.observaciones = e.target.value.trim();
-      saveCart();
-    });
-
-    // Validar estado inicial
-    if (razonSocialInput) state.clientValid.razonSocial = (razonSocialInput.value || '').trim().length >= 3;
-    if (rutInput) state.clientValid.rut = validateRut(rutInput.value || '');
-    if (telInput) state.clientValid.telefono = (telInput.value || '').replace(/\D/g, '').length >= 8;
-    if (emailInput) state.clientValid.email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.value || '');
-    if (dirInput) state.clientValid.direccion = (dirInput.value || '').trim().length >= 5;
+    return allValid;
   }
 
-  function toggleValidationState(input, isValid) {
-    if (!input.value.trim()) {
-      input.classList.remove('is-valid', 'is-invalid');
-    } else if (isValid) {
-      input.classList.add('is-valid');
-      input.classList.remove('is-invalid');
-    } else {
-      input.classList.add('is-invalid');
-      input.classList.remove('is-valid');
-    }
-  }
-
-  function validateAllClientFields() {
-    const razonSocialInput = document.getElementById('clientRazonSocial');
-    const rutInput = document.getElementById('clientRut');
-    const telInput = document.getElementById('clientTelefono');
-    const emailInput = document.getElementById('clientEmail');
-    const dirInput = document.getElementById('clientDireccion');
-
-    const rs = (razonSocialInput?.value || '').trim();
-    const rut = (rutInput?.value || '').trim();
-    const tel = (telInput?.value || '').trim();
-    const mail = (emailInput?.value || '').trim();
-    const dir = (dirInput?.value || '').trim();
-
-    if (!rs || rs.length < 3) {
-      showToast('Por favor ingresa la Razón Social o Nombre del Cliente', 'error');
-      razonSocialInput?.focus();
-      return false;
-    }
-
-    if (!rut || !validateRut(rut)) {
-      showToast('El RUT ingresado no es válido. Verifica el dígito verificador.', 'error');
-      rutInput?.focus();
-      return false;
-    }
-
-    if (!tel || tel.replace(/\D/g, '').length < 8) {
-      showToast('Ingresa un número telefónico o WhatsApp de contacto válido.', 'error');
-      telInput?.focus();
-      return false;
-    }
-
-    if (!mail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
-      showToast('Ingresa un correo electrónico válido.', 'error');
-      emailInput?.focus();
-      return false;
-    }
-
-    if (!dir || dir.length < 5) {
-      showToast('Ingresa la dirección de despacho y Comuna / Ciudad.', 'error');
-      dirInput?.focus();
-      return false;
-    }
-
-    return true;
-  }
-
-  // ─── Generación Oficial de PDF (Formato Oficial de Pedidos Tridente) ───────────
+  // ─── Generación de PDF Idéntica al Screenshot Oficial ───────────────────────
   async function generateCotizacionPDF() {
-    if (!validateAllClientFields()) return;
-
-    if (state.cart.length === 0) {
-      showToast('Debes agregar al menos un producto a la cotización.', 'warning');
+    if (!checkDownloadState()) {
+      showToast('Completa todos los campos obligatorios y agrega al menos un producto.', 'error');
       return;
     }
 
     if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
-      showToast('El generador de PDF aún se está cargando. Intenta de nuevo en 2 segundos.', 'warning');
+      showToast('Cargando librería de PDF... por favor reintenta en un momento.', 'warning');
       return;
     }
 
     const downloadBtn = document.getElementById('btnDownloadPdf');
-    const btnSpinner = document.getElementById('pdfBtnSpinner');
+    const spinner = document.getElementById('pdfBtnSpinner');
     const btnText = document.getElementById('pdfBtnText');
 
     try {
       state.isGeneratingPdf = true;
       if (downloadBtn) downloadBtn.disabled = true;
-      if (btnSpinner) btnSpinner.style.display = 'inline-block';
-      if (btnText) btnText.textContent = 'Generando Comprobante PDF...';
+      if (spinner) spinner.style.display = 'inline-block';
+      if (btnText) btnText.textContent = 'Generando Comprobante Oficial...';
 
-      // 1. Código y Tiempos de Vigencia Fija (72 Horas)
-      const randomCode = Math.floor(100000 + Math.random() * 900000);
-      const cotCode = `COT-${randomCode}`;
       const v = getValidityTimes();
       const totals = computeTotals();
+      const cotCode = state.cotFolio;
 
-      // 2. Instanciar jsPDF (Formato Carta / Letter)
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -760,412 +679,355 @@
       });
 
       const pageWidth = doc.internal.pageSize.getWidth(); // 215.9 mm
-      const margin = 14;
+      const margin = 18;
       const usableWidth = pageWidth - margin * 2;
 
-      // 3. Encabezado Oficial
-      // Logo Tridente
+      // 1. Logo Tridente Oficial (Top-Left)
       if (typeof window.TRIDENTE_LOGO_BASE64 !== 'undefined') {
-        doc.addImage(window.TRIDENTE_LOGO_BASE64, 'PNG', margin, 12, 28, 30.8);
+        doc.addImage(window.TRIDENTE_LOGO_BASE64, 'PNG', margin, 14, 22, 24.2);
       }
 
-      // Membrete Institucional (Izquierda)
+      // 2. Título Formal (Top-Right): COTIZACIÓN #COT-XXXXXX
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
+      doc.setFontSize(16);
       doc.setTextColor(23, 43, 77); // #172B4D
-      doc.text('DISTRIBUIDORA TRIDENTE', 46, 18);
+      doc.text(`COTIZACIÓN #${cotCode}`, pageWidth - margin, 26, { align: 'right' });
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text('Distribuidora Mayorista de Confites, Snacks, Tabacos y Abarrotes', 46, 23);
-      doc.text('La Serena, Coquimbo, Ovalle y Región de Coquimbo, Chile', 46, 27);
-      doc.text('WhatsApp: +56 9 4448 8407  |  Web: www.distribuidoratridente.cl', 46, 31);
-
-      // Título y Folio (Derecha)
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(15);
-      doc.setTextColor(20, 108, 206); // #146CCE
-      doc.text(`COTIZACIÓN #${cotCode}`, pageWidth - margin, 18, { align: 'right' });
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text(`Emisión: ${v.issuedText}`, pageWidth - margin, 24, { align: 'right' });
-
-      // Vigencia estricta 72 Horas destacada en rojo/ámbar corporativo
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(220, 38, 38);
-      doc.text('⏱️ VIGENCIA: 72 HORAS FIJAS', pageWidth - margin, 29, { align: 'right' });
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105);
-      doc.text(`Válida hasta: ${v.expiresText}`, pageWidth - margin, 33, { align: 'right' });
-
-      // Línea divisoria azul institucional (#146CCE)
+      // 3. Línea Azul Separadora Oficial (#146CCE)
       doc.setDrawColor(20, 108, 206);
       doc.setLineWidth(1);
-      doc.line(margin, 40, pageWidth - margin, 40);
+      doc.line(margin, 43, pageWidth - margin, 43);
 
-      // 4. Bloque de Información del Cliente (Formato Tarjeta)
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(margin, 43, usableWidth, 27, 2, 2, 'FD');
+      // 4. Bloque de Datos del Cliente (Exacto al Screenshot)
+      let curY = 51;
+      const lineHeight = 5.2;
 
-      // Título del bloque
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(23, 43, 77);
-      doc.text('DATOS DEL CLIENTE (PROSPECTO REGISTRADO):', margin + 4, 48);
+      const rs = (document.getElementById('clientRazonSocial')?.value || '').trim();
+      const rut = (document.getElementById('clientRut')?.value || '').trim();
+      const email = (document.getElementById('clientEmail')?.value || '').trim();
+      const tel = (document.getElementById('clientTelefono')?.value || '').trim();
+      const dir = (document.getElementById('clientDireccion')?.value || '').trim();
+      const obs = (document.getElementById('clientObservaciones')?.value || '').trim() || 'nada';
 
-      // Columna 1 del Cliente
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(51, 65, 85);
-      doc.text('Razón Social:', margin + 4, 54);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(15, 23, 42);
-      doc.text(state.client.razonSocial || 'No especificado', margin + 26, 54);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(51, 65, 85);
-      doc.text('RUT:', margin + 4, 59);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(15, 23, 42);
-      doc.text(state.client.rut || 'No especificado', margin + 26, 59);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(51, 65, 85);
-      doc.text('Dirección / Comuna:', margin + 4, 64);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(15, 23, 42);
-      doc.text(state.client.direccion || 'No especificado', margin + 34, 64);
-
-      // Columna 2 del Cliente
-      const col2X = margin + 102;
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(51, 65, 85);
-      doc.text('Teléfono / WhatsApp:', col2X, 54);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(15, 23, 42);
-      doc.text(state.client.telefono || 'No especificado', col2X + 32, 54);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(51, 65, 85);
-      doc.text('Correo Electrónico:', col2X, 59);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(15, 23, 42);
-      doc.text(state.client.email || 'No especificado', col2X + 32, 59);
-
-      if (state.client.observaciones) {
+      const printField = (label, value, isHighlight = false) => {
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(51, 65, 85);
-        doc.text('Observaciones:', col2X, 64);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(15, 23, 42);
-        doc.text(state.client.observaciones.slice(0, 45), col2X + 24, 64);
-      }
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text(label, margin, curY);
 
-      // 5. Tabla de Productos (jspdf-autotable)
+        const labelWidth = doc.getTextWidth(label) + 2;
+        doc.setFont('helvetica', 'normal');
+        if (isHighlight) {
+          doc.setTextColor(185, 28, 28);
+          doc.setFont('helvetica', 'bold');
+        } else {
+          doc.setTextColor(71, 85, 105);
+        }
+        doc.text(value, margin + labelWidth, curY);
+        curY += lineHeight;
+      };
+
+      printField('Cliente / Razón Social: ', rs);
+      printField('RUT / Identificador: ', rut);
+      printField('Correo Electrónico: ', email);
+      printField('Teléfono: ', tel);
+      printField('Fecha de emisión: ', v.issuedFull);
+      printField('Vigencia de la oferta: ', `72 horas (hasta el ${v.expiresFull})`);
+      printField('Dirección / Entrega: ', dir);
+      printField('Observaciones: ', obs);
+
+      curY += 4;
+
+      // 5. Tabla de Productos (Idéntica al Screenshot del PDF)
+      // Columnas: Producto | Cantidad | IVA | Precio Unit. | Subtotal
       const tableHeaders = [
-        ['#', 'Código', 'Producto / Descripción', 'Empaque', 'Cant.', 'IVA', 'Precio Unit.', 'Subtotal']
+        ['Producto', 'Cantidad', 'IVA', 'Precio Unit.', 'Subtotal']
       ];
 
-      const tableRows = state.cart.map((item, idx) => {
-        const empaqueStr = item.tipo_empaque === 'caja' ? `Caja x${item.cantidad_caja || '-'}` : 'Unidad';
-        const ivaStr = item.afecto ? 'Afecto' : 'Exento';
+      const tableRows = state.cart.map((item) => {
+        const prodLabel = `${item.nombre} [${item.codigo}]`;
+        const cantLabel = `${item.cantidad} ${item.tipo_empaque === 'caja' ? `cja. (x${item.cantidad_caja || 1} un.)` : 'un.'}`;
+        const ivaLabel = item.afecto ? 'Afecto' : 'Exento';
         const subtotal = item.precio_unitario * item.cantidad;
 
         return [
-          idx + 1,
-          item.codigo,
-          item.nombre,
-          empaqueStr,
-          item.cantidad,
-          ivaStr,
+          prodLabel,
+          cantLabel,
+          ivaLabel,
           formatMoney(item.precio_unitario),
           formatMoney(subtotal)
         ];
       });
 
       doc.autoTable({
-        startY: 74,
+        startY: curY,
         head: tableHeaders,
         body: tableRows,
         margin: { left: margin, right: margin },
         styles: {
           font: 'helvetica',
-          fontSize: 8,
-          cellPadding: 2.5,
-          overflow: 'linebreak',
+          fontSize: 8.5,
+          cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 },
           textColor: [30, 41, 59],
+          lineWidth: 0,
         },
         headStyles: {
-          fillColor: [23, 43, 77], // #172B4D Azul Tridente
-          textColor: [255, 255, 255],
+          fillColor: [235, 243, 250], // Soft light-blue (#EBF3FA)
+          textColor: [23, 43, 77],
           fontStyle: 'bold',
-          halign: 'center',
           fontSize: 8.5,
+          lineWidth: 0,
         },
         alternateRowStyles: {
-          fillColor: [248, 250, 252],
+          fillColor: [250, 250, 252],
         },
         columnStyles: {
-          0: { cellWidth: 8, halign: 'center' },
-          1: { cellWidth: 16, halign: 'center', fontStyle: 'bold' },
-          2: { cellWidth: 'auto', halign: 'left' },
-          3: { cellWidth: 20, halign: 'center' },
-          4: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
-          5: { cellWidth: 15, halign: 'center' },
-          6: { cellWidth: 22, halign: 'right' },
-          7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
-        },
-        didDrawPage: (data) => {
-          // Footer institucional en cada página
-          const pageCount = doc.internal.getNumberOfPages();
-          const pageHeight = doc.internal.pageSize.getHeight();
-
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(7.5);
-          doc.setTextColor(148, 163, 184);
-          doc.text(
-            'Distribuidora Tridente SpA • La Serena, Región de Coquimbo • www.distribuidoratridente.cl',
-            margin,
-            pageHeight - 8
-          );
-          doc.text(
-            `Página ${data.pageNumber} de ${pageCount}`,
-            pageWidth - margin,
-            pageHeight - 8,
-            { align: 'right' }
-          );
+          0: { cellWidth: 'auto', halign: 'left' },
+          1: { cellWidth: 26, halign: 'center' },
+          2: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 28, halign: 'right' },
+          4: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
         },
       });
 
-      // 6. Bloque de Totales y Notas Comerciales
-      let finalY = doc.lastAutoTable.finalY + 6;
-      const pageHeight = doc.internal.pageSize.getHeight();
+      const finalY = doc.lastAutoTable.finalY + 7;
 
-      // Si queda poco espacio para totales y notas, agregar nueva página
-      if (finalY + 60 > pageHeight - 15) {
-        doc.addPage();
-        finalY = 20;
-      }
-
-      // Cuadro de Desglose de Totales (Alineado a la derecha)
-      const totalsBoxWidth = 84;
-      const totalsBoxX = pageWidth - margin - totalsBoxWidth;
-
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(totalsBoxX, finalY, totalsBoxWidth, totals.totalExento > 0 ? 36 : 30, 2, 2, 'FD');
-
-      let lineY = finalY + 5.5;
+      // 6. Fila de Total y Conteo de Ítems
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
+      doc.setFontSize(9);
       doc.setTextColor(71, 85, 105);
-      doc.text('Subtotal Neto (Afecto):', totalsBoxX + 4, lineY);
-      doc.text(formatMoney(totals.totalNeto), pageWidth - margin - 4, lineY, { align: 'right' });
-
-      if (totals.totalExento > 0) {
-        lineY += 5;
-        doc.text('Subtotal Exento:', totalsBoxX + 4, lineY);
-        doc.text(formatMoney(totals.totalExento), pageWidth - margin - 4, lineY, { align: 'right' });
-      }
-
-      lineY += 5;
-      doc.text('IVA (19%):', totalsBoxX + 4, lineY);
-      doc.text(formatMoney(totals.totalIva), pageWidth - margin - 4, lineY, { align: 'right' });
-
-      lineY += 6;
-      // Barra de Total Final Destacada (#146CCE)
-      doc.setFillColor(20, 108, 206);
-      doc.roundedRect(totalsBoxX + 2, lineY - 3.5, totalsBoxWidth - 4, 10, 1.5, 1.5, 'F');
+      doc.text(`Total productos: ${totals.itemsCount} ítems (${totals.unidadesCount} un.)`, margin, finalY);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(255, 255, 255);
-      doc.text('TOTAL FINAL (CLP):', totalsBoxX + 5, lineY + 3);
       doc.setFontSize(11);
-      doc.text(formatMoney(totals.totalFinal), pageWidth - margin - 5, lineY + 3, { align: 'right' });
+      doc.setTextColor(23, 43, 77);
+      doc.text('TOTAL', pageWidth - margin - 35, finalY);
 
-      // 7. Notas Comerciales al Pie (Alineado a la izquierda)
-      const notesWidth = usableWidth - totalsBoxWidth - 6;
-      doc.setFillColor(255, 251, 235); // Fondo ámbar suave
-      doc.setDrawColor(254, 230, 138);
-      doc.roundedRect(margin, finalY, notesWidth, totals.totalExento > 0 ? 36 : 30, 2, 2, 'FD');
+      doc.setFontSize(13);
+      doc.text(formatMoney(totals.totalFinal), pageWidth - margin, finalY, { align: 'right' });
 
+      // 7. Condiciones de la Cotización (Pie del Documento)
+      const condY = finalY + 12;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.setTextColor(146, 64, 14);
-      doc.text('TÉRMINOS Y CONDICIONES DE LA COTIZACIÓN:', margin + 4, finalY + 5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Condiciones de la cotización:', margin, condY);
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
-      doc.setTextColor(120, 53, 15);
-      const notes = [
+      const bulletPoints = [
         '• Valores expresados en pesos chilenos (CLP) con impuestos incluidos.',
         '• Esta cotización no reserva stock de productos de forma inmediata.',
-        '• Oferta válida exclusivamente por 72 horas a partir de su emisión o hasta agotar existencias.',
-        '• Para formalizar tu pedido, contáctanos a nuestro WhatsApp oficial: +56 9 4448 8407.',
+        `• Válida hasta el ${v.expiresFull} o hasta agotar existencias.`,
+        '• Para confirmar y procesar este pedido, comuníquese con su ejecutivo comercial o responda a este documento.'
       ];
 
-      let noteY = finalY + 9.5;
-      notes.forEach((nt) => {
-        doc.text(nt, margin + 4, noteY);
-        noteY += 4.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(110, 120, 135);
+
+      bulletPoints.forEach((bp, idx) => {
+        doc.text(bp, margin, condY + 4 + idx * 3.8);
       });
 
-      // 8. Disparar Descarga Automática del PDF
-      const sanitizedClientName = (state.client.razonSocial || 'Cliente')
-        .replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '')
-        .trim();
-      const fileName = `Cotizacion - ${sanitizedClientName} - ${cotCode}.pdf`;
+      // 8. Descarga Automática del PDF
+      const sanitizedName = rs.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ\s_-]/g, '').trim() || 'Cliente';
+      const filename = `Cotizacion - ${sanitizedName} - ${cotCode}.pdf`;
 
-      doc.save(fileName);
-
-      showToast(`¡Cotización ${cotCode} descargada con éxito!`, 'success');
+      doc.save(filename);
+      showToast(`¡Cotización descargada con éxito! (${filename})`, 'success');
     } catch (err) {
       console.error('Error generando PDF:', err);
-      showToast('Ocurrió un error al generar el PDF. Por favor reintenta.', 'error');
+      showToast('Ocurrió un error al generar el PDF. Intenta nuevamente.', 'error');
     } finally {
       state.isGeneratingPdf = false;
-      if (downloadBtn) downloadBtn.disabled = state.cart.length === 0;
-      if (btnSpinner) btnSpinner.style.display = 'none';
+      if (downloadBtn) downloadBtn.disabled = !checkDownloadState();
+      if (spinner) spinner.style.display = 'none';
       if (btnText) btnText.textContent = 'Descargar Cotización (PDF)';
     }
   }
 
-  // ─── Toasts de Notificación ─────────────────────────────────────────────────
-  function showToast(message, type = 'info') {
-    let container = document.getElementById('cotToastContainer');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'cotToastContainer';
-      container.className = 'cot-toast-container';
-      document.body.appendChild(container);
-    }
-
-    const toast = document.createElement('div');
-    toast.className = `cot-toast ${type}`;
-    toast.innerHTML = `
-      <span style="font-size:1.1rem;">${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span>
-      <span>${message}</span>
-    `;
-
-    container.appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateX(100%)';
-      toast.style.transition = 'all 0.3s ease';
-      setTimeout(() => toast.remove(), 300);
-    }, 3200);
-  }
-
-  // ─── Carga de Datos desde API con Fallback ───────────────────────────────────
-  async function loadCatalogData() {
-    // 1. Usar datos precargados si existen para renderizado en 0ms
-    if (window.TRIDENTE_PRODUCTOS_PRECARGADOS && Array.isArray(window.TRIDENTE_PRODUCTOS_PRECARGADOS)) {
-      state.products = window.TRIDENTE_PRODUCTOS_PRECARGADOS;
-    }
-    if (window.TRIDENTE_CATEGORIAS_PRECARGADAS && Array.isArray(window.TRIDENTE_CATEGORIAS_PRECARGADAS)) {
-      state.categories = window.TRIDENTE_CATEGORIAS_PRECARGADAS;
-    }
-
-    renderCategories();
-    renderProducts();
-
-    // 2. Intentar actualizar desde el backend en vivo
-    try {
-      const [resProd, resCat] = await Promise.all([
-        fetch(`${API_BASE}/api/productos`),
-        fetch(`${API_BASE}/api/categorias`),
-      ]);
-
-      if (resProd.ok) {
-        const prodData = await resProd.json();
-        if (Array.isArray(prodData) && prodData.length > 0) {
-          state.products = prodData;
-        }
-      }
-
-      if (resCat.ok) {
-        const catData = await resCat.json();
-        if (Array.isArray(catData) && catData.length > 0) {
-          state.categories = catData;
-        }
-      }
-
-      renderCategories();
-      renderProducts();
-    } catch (err) {
-      console.warn('Usando catálogo precargado local (API en segundo plano no disponible):', err);
-    }
-  }
-
-  // ─── Inicialización de Eventos Generales ─────────────────────────────────────
+  // ─── Inicialización de Eventos y Listeners ──────────────────────────────────
   function initEvents() {
-    const searchInput = document.getElementById('catalogSearchInput');
-    const clearSearchBtn = document.getElementById('searchClearBtn');
-    const clearCartBtn = document.getElementById('btnClearCot');
-    const downloadPdfBtn = document.getElementById('btnDownloadPdf');
+    const v = getValidityTimes();
 
-    // Búsqueda interactiva
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
-        state.searchQuery = e.target.value;
-        state.currentPage = 1;
-        if (clearSearchBtn) {
-          clearSearchBtn.style.display = state.searchQuery ? 'block' : 'none';
+    // Folio y fechas en la vista
+    const folioEl = document.getElementById('sheetCotFolio');
+    const emisionEl = document.getElementById('sheetFechaEmision');
+    const vigenciaEl = document.getElementById('sheetVigenciaOferta');
+    const heroVigencia = document.getElementById('heroVigenciaText');
+    const condVenceEl = document.getElementById('sheetCondicionesVenceDate');
+
+    if (folioEl) folioEl.textContent = `COTIZACIÓN #${state.cotFolio}`;
+    if (emisionEl) emisionEl.textContent = v.issuedFull;
+    if (vigenciaEl) vigenciaEl.textContent = `72 horas (hasta el ${v.expiresFull})`;
+    if (heroVigencia) heroVigencia.textContent = `Cotización válida por 72 horas (hasta el ${v.expiresText})`;
+    if (condVenceEl) condVenceEl.textContent = v.expiresFull;
+
+    // Selector de Categoría
+    const selectCat = document.getElementById('selectCategoria');
+    selectCat?.addEventListener('change', (e) => {
+      state.filterCategory = e.target.value;
+      populateProductSelect();
+    });
+
+    // Input de Búsqueda por Nombre / SKU
+    const inputSearch = document.getElementById('inputBuscarProducto');
+    const btnClearSearch = document.getElementById('btnClearSearch');
+
+    inputSearch?.addEventListener('input', (e) => {
+      state.searchQuery = e.target.value;
+      populateProductSelect();
+    });
+
+    btnClearSearch?.addEventListener('click', () => {
+      if (inputSearch) inputSearch.value = '';
+      state.searchQuery = '';
+      populateProductSelect();
+    });
+
+    // Selector de Producto
+    const selectProd = document.getElementById('selectProducto');
+    selectProd?.addEventListener('change', (e) => {
+      const pid = e.target.value;
+      if (!pid) {
+        state.selectedProduct = null;
+      } else {
+        state.selectedProduct = state.products.find((p) => p.id === pid) || null;
+      }
+      updateProductPreviewCard();
+    });
+
+    // Radio de Empaque (Unidad vs Caja)
+    const radiosPkg = document.querySelectorAll('input[name="previewPackaging"]');
+    const labelUnidad = document.getElementById('labelRadioUnidad');
+    const labelCaja = document.getElementById('labelRadioCaja');
+
+    radiosPkg.forEach((r) => {
+      r.addEventListener('change', (e) => {
+        state.selectedPackaging = e.target.value;
+        if (e.target.value === 'unidad') {
+          labelUnidad?.classList.add('active');
+          labelCaja?.classList.remove('active');
+        } else {
+          labelCaja?.classList.add('active');
+          labelUnidad?.classList.remove('active');
         }
-        renderProducts();
       });
-    }
+    });
 
-    if (clearSearchBtn) {
-      clearSearchBtn.addEventListener('click', () => {
-        if (searchInput) {
-          searchInput.value = '';
-          state.searchQuery = '';
-          state.currentPage = 1;
-          clearSearchBtn.style.display = 'none';
-          renderProducts();
-          searchInput.focus();
+    // Stepper de Cantidad (+ / -)
+    const btnMinus = document.getElementById('btnPreviewMinus');
+    const btnPlus = document.getElementById('btnPreviewPlus');
+    const inputQty = document.getElementById('inputPreviewQty');
+
+    btnMinus?.addEventListener('click', () => {
+      let val = parseInt(inputQty?.value || '1', 10);
+      if (val > 1) {
+        inputQty.value = val - 1;
+        state.selectedQty = val - 1;
+      }
+    });
+
+    btnPlus?.addEventListener('click', () => {
+      let val = parseInt(inputQty?.value || '1', 10);
+      inputQty.value = val + 1;
+      state.selectedQty = val + 1;
+    });
+
+    inputQty?.addEventListener('change', () => {
+      let val = parseInt(inputQty.value, 10);
+      if (isNaN(val) || val < 1) val = 1;
+      inputQty.value = val;
+      state.selectedQty = val;
+    });
+
+    // Botón Agregar Producto Seleccionado
+    const btnAdd = document.getElementById('btnAddSelectedProduct');
+    btnAdd?.addEventListener('click', () => {
+      addCurrentSelectedProduct();
+    });
+
+    // Listeners del Formulario de Cliente
+    const rsInput = document.getElementById('clientRazonSocial');
+    const rutInput = document.getElementById('clientRut');
+    const rutErr = document.getElementById('clientRutError');
+    const telInput = document.getElementById('clientTelefono');
+    const mailInput = document.getElementById('clientEmail');
+    const dirInput = document.getElementById('clientDireccion');
+    const obsInput = document.getElementById('clientObservaciones');
+
+    rsInput?.addEventListener('input', () => {
+      const valid = rsInput.value.trim().length >= 3;
+      rsInput.classList.toggle('is-valid', valid);
+      rsInput.classList.toggle('is-invalid', !valid && rsInput.value.length > 0);
+      checkDownloadState();
+    });
+
+    rutInput?.addEventListener('input', (e) => {
+      const formatted = formatRut(e.target.value);
+      e.target.value = formatted;
+      const valid = validateRut(formatted);
+
+      rutInput.classList.toggle('is-valid', valid);
+      rutInput.classList.toggle('is-invalid', !valid && formatted.length > 2);
+
+      if (rutErr) {
+        if (!formatted) {
+          rutErr.textContent = '';
+        } else if (valid) {
+          rutErr.textContent = '✓ RUT chileno válido';
+          rutErr.className = 'field-feedback text-success';
+        } else {
+          rutErr.textContent = '⚠️ RUT inválido';
+          rutErr.className = 'field-feedback text-error';
         }
-      });
-    }
+      }
+      checkDownloadState();
+    });
 
-    // Vaciar Cotización
-    if (clearCartBtn) {
-      clearCartBtn.addEventListener('click', clearCart);
-    }
+    telInput?.addEventListener('input', () => {
+      const valid = telInput.value.replace(/\D/g, '').length >= 8;
+      telInput.classList.toggle('is-valid', valid);
+      telInput.classList.toggle('is-invalid', !valid && telInput.value.length > 0);
+      checkDownloadState();
+    });
 
-    // Botón Único de Descarga PDF
-    if (downloadPdfBtn) {
-      downloadPdfBtn.addEventListener('click', generateCotizacionPDF);
-    }
+    mailInput?.addEventListener('input', () => {
+      const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailInput.value.trim());
+      mailInput.classList.toggle('is-valid', valid);
+      mailInput.classList.toggle('is-invalid', !valid && mailInput.value.length > 0);
+      checkDownloadState();
+    });
+
+    dirInput?.addEventListener('input', () => {
+      const valid = dirInput.value.trim().length >= 5;
+      dirInput.classList.toggle('is-valid', valid);
+      dirInput.classList.toggle('is-invalid', !valid && dirInput.value.length > 0);
+      checkDownloadState();
+    });
+
+    obsInput?.addEventListener('input', () => {
+      checkDownloadState();
+    });
+
+    // Botón de Descarga PDF
+    const btnDownload = document.getElementById('btnDownloadPdf');
+    btnDownload?.addEventListener('click', () => {
+      generateCotizacionPDF();
+    });
+
+    // Estado inicial de la tabla y botón
+    renderCotizacionTable();
+    checkDownloadState();
   }
 
-  // ─── Inicio ─────────────────────────────────────────────────────────────────
-  function init() {
-    loadCart();
-    updateVigenciaBanners();
-    initClientForm();
-    initEvents();
-    renderSummary();
-    loadCatalogData();
-
-    // Actualizar reloj de vigencia cada minuto
-    setInterval(updateVigenciaBanners, 60000);
-  }
-
+  // ─── Arranque cuando el DOM esté Listo ───────────────────────────────────────
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => {
+      initEvents();
+      loadCatalog();
+    });
   } else {
-    init();
+    initEvents();
+    loadCatalog();
   }
 })();

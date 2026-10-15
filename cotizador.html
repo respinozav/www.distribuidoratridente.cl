@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>Cotizador Web de Productos | Distribuidora Tridente</title>
-  <meta name="description" content="Arma tu cotización de productos mayoristas en línea con precios oficiales y descarga al instante tu comprobante en PDF con vigencia garantizada por 72 horas." />
+  <title>Cotizador Oficial | Distribuidora Tridente</title>
+  <meta name="description" content="Cotizador oficial de Distribuidora Tridente. Arma tu cotización de productos mayoristas con precios vigentes y descarga tu comprobante formal en PDF con vigencia de 72 horas." />
 
   <!-- Google Fonts & Hoja de Estilos Principal -->
   <link rel="stylesheet" href="css/styles.css" />
@@ -36,10 +36,10 @@
     </div>
   </header>
 
-  <!-- ==================== HERO DEL COTIZADOR ==================== -->
+  <!-- ==================== HERO SUPERIOR ==================== -->
   <section class="cotizador-hero">
     <div class="cotizador-badge">
-      <span>📋</span> Cotizador Oficial de Ventas Mayoristas
+      <span>📋</span> Cotizador Web Oficial de Ventas Mayoristas
     </div>
 
     <h1 class="cotizador-title">
@@ -47,250 +47,335 @@
     </h1>
 
     <p class="cotizador-subtitle">
-      Arma tu pedido, consulta precios mayoristas actualizados y descarga de inmediato tu cotización formal en PDF con vigencia de 72 horas para tu almacén, botillería o minimarket.
+      Selecciona tus productos con precios oficiales vigentes y descarga al instante tu comprobante formal en PDF con validez garantizada de 72 horas.
     </p>
 
-    <!-- Banner Destacado de Vigencia Fija de 72 Horas -->
     <div class="vigencia-banner" id="heroVigenciaBanner">
       <span class="vigencia-icon">⏱️</span>
       <span id="heroVigenciaText">Cotización válida por 72 horas</span>
     </div>
   </section>
 
-  <!-- ==================== CONTENEDOR PRINCIPAL ==================== -->
-  <main class="cotizador-main">
+  <!-- ==================== DOCUMENTO OFICIAL DE COTIZACIÓN ==================== -->
+  <main class="cotizador-container">
 
-    <!-- COLUMNA IZQUIERDA: Formulario Cliente + Catálogo -->
-    <div class="cot-content-col">
+    <div class="cot-pdf-sheet">
 
-      <!-- PASO 1: Datos del Cliente Nuevo -->
-      <section class="cot-card" id="clientSection">
-        <div class="cot-card-header">
-          <div>
-            <h2 class="cot-card-title">
-              <span class="cot-step-number">1</span>
-              Datos del Cliente / Negocio
-            </h2>
-            <p class="cot-card-desc">Ingresa tus datos comerciales para emitir tu comprobante formal de cotización.</p>
-          </div>
+      <!-- ENCABEZADO IDÉNTICO AL PDF -->
+      <div class="pdf-sheet-header">
+        <div class="pdf-sheet-logo">
+          <img src="img/logo-tridente-pdf.png" alt="Distribuidora Tridente" />
         </div>
+        <div class="pdf-sheet-title-box">
+          <h2 class="pdf-sheet-title" id="sheetCotFolio">COTIZACIÓN #COT-605NTA</h2>
+          <div class="pdf-sheet-badge">⏱️ Vigencia 72 Horas</div>
+        </div>
+      </div>
 
-        <form id="cotClientForm" class="cot-form-grid" onsubmit="return false;">
-          <!-- Razón Social / Nombre -->
-          <div class="cot-form-group">
-            <label class="cot-label" for="clientRazonSocial">
-              Razón Social / Nombre y Apellido <span class="req">*</span>
+      <!-- LÍNEA AZUL SEPARADORA OFICIAL (#146CCE) -->
+      <div class="pdf-sheet-divider"></div>
+
+      <!-- BLOQUE 1: DATOS DEL CLIENTE / NEGOCIO (FORMATO PDF) -->
+      <section class="pdf-sheet-client-block">
+        <h3 class="sheet-section-title">Datos del Cliente / Negocio</h3>
+        <p class="sheet-section-subtitle">Ingresa la información comercial para emitir tu comprobante formal.</p>
+
+        <form id="cotClientForm" class="client-grid-form" onsubmit="return false;">
+          <!-- Cliente / Razón Social -->
+          <div class="client-form-row">
+            <label class="client-label" for="clientRazonSocial">
+              Cliente / Razón Social: <span class="req">*</span>
             </label>
-            <input
-              type="text"
-              id="clientRazonSocial"
-              class="cot-input"
-              placeholder="Ej: Comercial Don Juan SpA o Juan Pérez"
-              maxlength="120"
-              required
-            />
-            <span class="cot-help-text">Nombre legal o nombre de fantasía de tu local.</span>
+            <div class="client-input-wrap">
+              <input
+                type="text"
+                id="clientRazonSocial"
+                class="client-field"
+                placeholder="Ej: Comercial Don Juan SpA o Juan Pérez"
+                maxlength="120"
+                required
+              />
+            </div>
           </div>
 
-          <!-- RUT con validación -->
-          <div class="cot-form-group">
-            <label class="cot-label" for="clientRut">
-              RUT / Identificador <span class="req">*</span>
+          <!-- RUT / Identificador -->
+          <div class="client-form-row">
+            <label class="client-label" for="clientRut">
+              RUT / Identificador: <span class="req">*</span>
             </label>
-            <input
-              type="text"
-              id="clientRut"
-              class="cot-input"
-              placeholder="Ej: 76.123.456-7"
-              maxlength="12"
-              required
-            />
-            <span class="cot-help-text" id="clientRutError">Validación automática de dígito verificador.</span>
-          </div>
-
-          <!-- Teléfono / WhatsApp -->
-          <div class="cot-form-group">
-            <label class="cot-label" for="clientTelefono">
-              Teléfono / WhatsApp de Contacto <span class="req">*</span>
-            </label>
-            <input
-              type="tel"
-              id="clientTelefono"
-              class="cot-input"
-              placeholder="Ej: +56 9 1234 5678"
-              maxlength="20"
-              required
-            />
-            <span class="cot-help-text">Para contacto directo de nuestro ejecutivo de ventas.</span>
+            <div class="client-input-wrap">
+              <input
+                type="text"
+                id="clientRut"
+                class="client-field"
+                placeholder="Ej: 76.123.456-7"
+                maxlength="12"
+                required
+              />
+              <span class="field-feedback" id="clientRutError"></span>
+            </div>
           </div>
 
           <!-- Correo Electrónico -->
-          <div class="cot-form-group">
-            <label class="cot-label" for="clientEmail">
-              Correo Electrónico <span class="req">*</span>
+          <div class="client-form-row">
+            <label class="client-label" for="clientEmail">
+              Correo Electrónico: <span class="req">*</span>
             </label>
-            <input
-              type="email"
-              id="clientEmail"
-              class="cot-input"
-              placeholder="Ej: contacto@tunegocio.cl"
-              maxlength="100"
-              required
-            />
-            <span class="cot-help-text">Formato válido (ejemplo@dominio.cl).</span>
+            <div class="client-input-wrap">
+              <input
+                type="email"
+                id="clientEmail"
+                class="client-field"
+                placeholder="Ej: contacto@tunegocio.cl"
+                maxlength="100"
+                required
+              />
+            </div>
           </div>
 
-          <!-- Dirección de Despacho y Comuna -->
-          <div class="cot-form-group full-width">
-            <label class="cot-label" for="clientDireccion">
-              Dirección de Despacho y Comuna / Ciudad <span class="req">*</span>
+          <!-- Teléfono / WhatsApp -->
+          <div class="client-form-row">
+            <label class="client-label" for="clientTelefono">
+              Teléfono: <span class="req">*</span>
             </label>
-            <input
-              type="text"
-              id="clientDireccion"
-              class="cot-input"
-              placeholder="Ej: Calle Balmaceda 450, La Serena (o Coquimbo, Ovalle, Vicuña)"
-              maxlength="160"
-              required
-            />
-            <span class="cot-help-text">Despachamos en toda la Región de Coquimbo.</span>
+            <div class="client-input-wrap">
+              <input
+                type="tel"
+                id="clientTelefono"
+                class="client-field"
+                placeholder="Ej: +56957506638"
+                maxlength="20"
+                required
+              />
+            </div>
+          </div>
+
+          <!-- Fecha de emisión (Automático) -->
+          <div class="client-form-row static-row">
+            <label class="client-label">Fecha de emisión:</label>
+            <div class="client-static-text" id="sheetFechaEmision">-</div>
+          </div>
+
+          <!-- Vigencia de la oferta (72 Horas Fijas) -->
+          <div class="client-form-row static-row">
+            <label class="client-label">Vigencia de la oferta:</label>
+            <div class="client-static-text highlight-vigencia" id="sheetVigenciaOferta">
+              72 horas (hasta el -)
+            </div>
+          </div>
+
+          <!-- Dirección / Entrega -->
+          <div class="client-form-row">
+            <label class="client-label" for="clientDireccion">
+              Dirección / Entrega: <span class="req">*</span>
+            </label>
+            <div class="client-input-wrap">
+              <input
+                type="text"
+                id="clientDireccion"
+                class="client-field"
+                placeholder="Ej: Calle 4 #123, La Serena (o Coquimbo, Ovalle, Santiago)"
+                maxlength="160"
+                required
+              />
+            </div>
           </div>
 
           <!-- Observaciones Adicionales -->
-          <div class="cot-form-group full-width">
-            <label class="cot-label" for="clientObservaciones">
-              Observaciones Adicionales <span style="font-weight:normal; color:#64748b;">(Opcional)</span>
+          <div class="client-form-row">
+            <label class="client-label" for="clientObservaciones">
+              Observaciones: <span class="opt">(Opcional)</span>
             </label>
-            <input
-              type="text"
-              id="clientObservaciones"
-              class="cot-input"
-              placeholder="Ej: Horario de entrega preferente, referencia de ubicación, etc."
-              maxlength="200"
-            />
+            <div class="client-input-wrap">
+              <input
+                type="text"
+                id="clientObservaciones"
+                class="client-field"
+                placeholder="Ej: nada o referencias de entrega"
+                maxlength="200"
+              />
+            </div>
           </div>
         </form>
       </section>
 
-      <!-- PASO 2: Catálogo y Selección de Productos -->
-      <section class="cot-card" id="productsSection">
-        <div class="cot-card-header">
-          <div>
-            <h2 class="cot-card-title">
-              <span class="cot-step-number">2</span>
-              Catálogo de Productos
-            </h2>
-            <p class="cot-card-desc" id="catalogResultsCount">Cargando productos disponibles...</p>
-          </div>
+      <!-- BLOQUE 2: SELECTOR DE PRODUCTOS (DEBAJO DE OBSERVACIONES ADICIONALES) -->
+      <section class="pdf-sheet-selector-block" id="productSelectorBlock">
+        <div class="selector-header">
+          <h3 class="sheet-section-title">
+            <span class="selector-badge-num">＋</span> Seleccionar Productos para Cotizar
+          </h3>
+          <span class="selector-catalog-count" id="selectorCatalogCount">415 productos disponibles</span>
         </div>
 
-        <!-- Barra de herramientas: Buscador y Categorías -->
-        <div class="catalog-toolbar">
-          <!-- Buscador en tiempo real -->
-          <div class="search-input-wrap">
-            <svg class="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              id="catalogSearchInput"
-              class="search-input"
-              placeholder="Buscar por nombre o código SKU (ej: Bon o Bon, OCB, 526, Big Time)..."
-              autocomplete="off"
-            />
-            <button type="button" id="searchClearBtn" class="search-clear-btn" aria-label="Limpiar búsqueda">✕</button>
+        <div class="selector-controls-box">
+          <div class="selector-grid">
+            <!-- 1. Select de Categoría -->
+            <div class="selector-field">
+              <label for="selectCategoria" class="selector-label">1. Filtrar por Categoría:</label>
+              <select id="selectCategoria" class="selector-select">
+                <option value="">Todas las Categorías</option>
+                <!-- Renderizado dinámico vía JS -->
+              </select>
+            </div>
+
+            <!-- 2. Input para buscar por nombre o código SKU -->
+            <div class="selector-field">
+              <label for="inputBuscarProducto" class="selector-label">2. Buscar por Nombre o SKU:</label>
+              <div class="search-input-container">
+                <input
+                  type="text"
+                  id="inputBuscarProducto"
+                  class="selector-input"
+                  placeholder="Escribe para buscar (ej: Big Time, Bon o Bon, OCB, 613)..."
+                  autocomplete="off"
+                />
+                <button type="button" id="btnClearSearch" class="btn-clear-search" title="Limpiar búsqueda">✕</button>
+              </div>
+            </div>
+
+            <!-- 3. Select de Productos -->
+            <div class="selector-field selector-product-col">
+              <label for="selectProducto" class="selector-label">3. Elegir Producto:</label>
+              <select id="selectProducto" class="selector-select">
+                <option value="">-- Selecciona un producto de la lista --</option>
+                <!-- Renderizado dinámico vía JS -->
+              </select>
+            </div>
           </div>
 
-          <!-- Filtro de Categorías en Pills -->
-          <div class="category-pills-wrap" id="categoryPills">
-            <!-- Renderizado dinámico vía JS -->
+          <!-- FICHA / PREVIEW DEL PRODUCTO SELECCIONADO CON IMAGEN VISIBLE -->
+          <div class="selected-product-card" id="selectedProductCard" style="display: none;">
+            <div class="product-card-image-wrap">
+              <img
+                id="cardProductImg"
+                src="img/logo-tridente-pdf.png"
+                alt="Foto del producto"
+                class="product-card-img"
+                onerror="this.onerror=null; this.src='img/logo-tridente-pdf.png';"
+              />
+            </div>
+
+            <div class="product-card-details">
+              <div class="card-details-top">
+                <div class="card-product-name" id="cardProductName">Nombre del Producto</div>
+                <div class="card-product-tags">
+                  <span class="card-tag sku-tag" id="cardProductSku">SKU: 000</span>
+                  <span class="card-tag cat-tag" id="cardProductCat">Categoría</span>
+                  <span class="card-tag iva-tag" id="cardProductIva">Afecto IVA (19%)</span>
+                </div>
+              </div>
+
+              <!-- Selector de Empaque y Precios -->
+              <div class="card-packaging-row">
+                <div class="packaging-selector-group">
+                  <span class="packaging-label">Empaque:</span>
+                  <div class="pkg-radios">
+                    <label class="pkg-radio active" id="labelRadioUnidad">
+                      <input type="radio" name="previewPackaging" value="unidad" checked />
+                      <span>Unidad: <strong id="priceTextUnidad">$0</strong></span>
+                    </label>
+
+                    <label class="pkg-radio" id="labelRadioCaja" style="display: none;">
+                      <input type="radio" name="previewPackaging" value="caja" />
+                      <span><span id="cajaQtyBadge">Caja x12</span>: <strong id="priceTextCaja">$0</strong></span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Selector de Cantidad y Botón Agregar -->
+                <div class="card-actions-row">
+                  <div class="qty-stepper">
+                    <button type="button" class="stepper-btn" id="btnPreviewMinus" aria-label="Disminuir cantidad">−</button>
+                    <input type="number" id="inputPreviewQty" value="1" min="1" max="9999" class="stepper-input" />
+                    <button type="button" class="stepper-btn" id="btnPreviewPlus" aria-label="Aumentar cantidad">+</button>
+                  </div>
+
+                  <button type="button" id="btnAddSelectedProduct" class="btn-add-to-quote">
+                    <span>➕ Agregar a la Cotización</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <!-- Grid de Tarjetas de Producto -->
-        <div class="products-grid" id="productsGrid">
-          <!-- Renderizado dinámico vía JS -->
-        </div>
-
-        <!-- Paginación del Catálogo -->
-        <div class="catalog-pagination" id="catalogPagination" style="display: none;">
-          <!-- Renderizado dinámico vía JS -->
         </div>
       </section>
 
+      <!-- BLOQUE 3: TABLA DE PRODUCTOS COTIZADOS (IDÉNTICA AL PDF) -->
+      <section class="pdf-sheet-table-block">
+        <div class="table-responsive-wrapper">
+          <table class="pdf-table" id="cotizacionTable">
+            <thead>
+              <tr>
+                <th class="col-producto">Producto</th>
+                <th class="col-cantidad">Cantidad</th>
+                <th class="col-iva">IVA</th>
+                <th class="col-unitario">Precio Unit.</th>
+                <th class="col-subtotal">Subtotal</th>
+                <th class="col-accion"></th>
+              </tr>
+            </thead>
+            <tbody id="cotizacionTableBody">
+              <!-- Filas renderizadas dinámicamente vía JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- FILA DE TOTALES Y RESUMEN EXACTA AL PDF -->
+        <div class="pdf-sheet-totals-row">
+          <div class="totals-left-count" id="docTotalItemsText">
+            Total productos: 0 ítems (0 un.)
+          </div>
+          <div class="totals-right-amount">
+            <span class="totals-word">TOTAL</span>
+            <span class="totals-figure" id="docTotalFinal">$0</span>
+          </div>
+        </div>
+
+        <!-- DESGLOSE TRIBUTARIO SUTIL -->
+        <div class="pdf-sheet-tax-bar">
+          <div class="tax-cell">Subtotal Neto: <strong id="docSubtotalNeto">$0</strong></div>
+          <div class="tax-cell" id="docExentoRow" style="display: none;">Exento (Tabacos): <strong id="docSubtotalExento">$0</strong></div>
+          <div class="tax-cell">IVA (19%): <strong id="docSubtotalIva">$0</strong></div>
+        </div>
+      </section>
+
+      <!-- BLOQUE 4: CONDICIONES DE LA COTIZACIÓN (IDÉNTICAS AL PDF) -->
+      <section class="pdf-sheet-conditions-block">
+        <h4 class="conditions-title">Condiciones de la cotización:</h4>
+        <ul class="conditions-list">
+          <li>• Valores expresados en pesos chilenos (CLP) con impuestos incluidos.</li>
+          <li>• Esta cotización no reserva stock de productos de forma inmediata.</li>
+          <li>• Válida hasta el <strong id="sheetCondicionesVenceDate">-</strong> o hasta agotar existencias.</li>
+          <li>• Para confirmar y procesar este pedido, comuníquese con su ejecutivo comercial o responda a este documento.</li>
+        </ul>
+      </section>
+
+      <!-- BLOQUE 5: BOTÓN PRINCIPAL EXCLUSIVO DE DESCARGA PDF -->
+      <section class="pdf-sheet-download-block">
+        <div class="download-state-alert" id="downloadStateAlert">
+          <span class="alert-icon">⚠️</span>
+          <span class="alert-text">
+            Completa los datos obligatorios del cliente (<span class="req">*</span>) y agrega al menos un producto a la tabla para descargar tu cotización.
+          </span>
+        </div>
+
+        <button type="button" id="btnDownloadPdf" class="btn-pdf-download" disabled>
+          <span class="btn-spinner" id="pdfBtnSpinner" style="display:none;"></span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span id="pdfBtnText">Descargar Cotización (PDF)</span>
+        </button>
+
+        <p class="download-legal-note">
+          Comprobante formal oficial de Distribuidora Tridente con vigencia estricta por 72 horas. Sin envíos automáticos.
+        </p>
+      </section>
+
     </div>
-
-    <!-- COLUMNA DERECHA: Resumen de Cotización (Sticky) -->
-    <aside class="cot-sidebar">
-      <div class="summary-card">
-        <div class="summary-header">
-          <h3 class="summary-header-title">
-            <span>🛒</span> Tu Cotización
-          </h3>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span class="summary-count-badge" id="summaryCountBadge">0 productos</span>
-            <button type="button" id="btnClearCot" class="btn-clear-cot" title="Vaciar cotización">
-              Vaciar
-            </button>
-          </div>
-        </div>
-
-        <!-- Lista de Productos Agregados -->
-        <div class="summary-items-list" id="summaryItemsList">
-          <!-- Renderizado dinámico vía JS -->
-        </div>
-
-        <!-- Desglose Financiero -->
-        <div class="summary-totals-body">
-          <div class="totals-line">
-            <span>Subtotal Neto (Afecto 19%):</span>
-            <strong id="totalsNeto">$0</strong>
-          </div>
-
-          <div class="totals-line" id="totalsExentoRow" style="display: none;">
-            <span>Subtotal Exento (Tabacos):</span>
-            <strong id="totalsExento">$0</strong>
-          </div>
-
-          <div class="totals-line">
-            <span>IVA (19%):</span>
-            <strong id="totalsIva">$0</strong>
-          </div>
-
-          <div class="totals-line-strong">
-            <div>
-              <span class="totals-final-label">TOTAL FINAL</span>
-              <span class="totals-iva-tag">CLP • IVA Incluido</span>
-            </div>
-            <span class="totals-final-amount" id="totalsFinalAmount">$0</span>
-          </div>
-
-          <!-- Caja de Vigencia en el Resumen -->
-          <div class="summary-vigencia-notice">
-            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/>
-            </svg>
-            <div>
-              <strong>Vigencia estricta de 72 horas</strong><br />
-              Emisión: <span id="summaryEmisionTime">Hoy</span><br />
-              Válida hasta: <span id="summaryVenceTime" style="font-weight:700;">-</span>
-            </div>
-          </div>
-
-          <!-- Botón Exclusivo de Acción Principal: Descarga PDF -->
-          <button type="button" id="btnDownloadPdf" class="btn-download-pdf" disabled>
-            <span class="btn-spinner" id="pdfBtnSpinner"></span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            <span id="pdfBtnText">Descargar Cotización (PDF)</span>
-          </button>
-          <span class="pdf-btn-subtext">Descarga automática de tu comprobante formal oficial en PDF.</span>
-        </div>
-      </div>
-    </aside>
 
   </main>
 
@@ -299,62 +384,51 @@
     <div class="container">
       <div class="footer-grid">
         <div class="footer-brand">
-          <a href="index.html" class="footer-logo">
-            <img src="img/logo-tridente.png" alt="Distribuidora Tridente" />
-          </a>
-          <p>
-            Distribuidora mayorista en La Serena y Región de Coquimbo. Especialistas en confites, snacks, tabacos, encendedores y abarrotes.
-          </p>
+          <img src="img/logo-tridente.png" alt="Distribuidora Tridente" class="footer-logo" />
+          <p>Distribuidora Mayorista líder en la Región de Coquimbo. Abastecemos a almacenes, botillerías y minimarkets.</p>
         </div>
-
-        <div class="footer-col">
+        <div class="footer-links">
           <h4>Navegación</h4>
           <ul>
             <li><a href="index.html">Inicio</a></li>
-            <li><a href="index.html#ofertas">Ofertas</a></li>
-            <li><a href="catalogo.html">Catálogo Oficial</a></li>
-            <li><a href="cotizar.html">Cotizador Web</a></li>
-            <li><a href="legal.html">Legal y Términos</a></li>
+            <li><a href="catalogo.html">Catálogo</a></li>
+            <li><a href="cotizar.html" style="color: #38bdf8; font-weight: 700;">Cotizador Web (PDF)</a></li>
+            <li><a href="legal.html">Información Legal</a></li>
+            <li><a href="https://pedidos.distribuidoratridente.cl" target="_blank" rel="noopener">Portal de Pedidos</a></li>
           </ul>
         </div>
-
-        <div class="footer-col">
-          <h4>Atención Mayorista</h4>
-          <ul>
-            <li><span>📍 La Serena, Región de Coquimbo</span></li>
-            <li><span>⏰ Lun a Vie: 09:00 a 18:00 hrs</span></li>
-            <li><span>📱 WhatsApp: +56 9 4448 8407</span></li>
-            <li><a href="https://pedidos.distribuidoratridente.cl" target="_blank" rel="noopener">Portal de Clientes</a></li>
-          </ul>
+        <div class="footer-contact">
+          <h4>Contacto Comercial</h4>
+          <p>📍 La Serena, Coquimbo, Ovalle y Región de Coquimbo</p>
+          <p>📱 WhatsApp Ventas: +56 9 4448 8407</p>
+          <p>⏱️ Horario: Lunes a Sábado</p>
         </div>
       </div>
-
       <div class="footer-bottom">
-        <p>© 2026 Distribuidora Tridente SpA. Todos los derechos reservados.</p>
-        <p><a href="legal.html">Términos y Aviso Legal</a></p>
+        <p>&copy; 2026 Distribuidora Tridente. Todos los derechos reservados. Desarrollado con tecnología de punta.</p>
       </div>
     </div>
   </footer>
 
-  <!-- Script para Menú Móvil -->
+  <!-- Toasts / Notificaciones flotantes -->
+  <div class="cot-toast-container" id="toastContainer"></div>
+
+  <!-- CDN de jsPDF y autoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Assets Locales: Logo Base64 y Catálogo de Fallback -->
+  <script src="js/tridente-logo-base64.js"></script>
+  <script src="js/tridente-catalog.js"></script>
+
+  <!-- Lógica Principal del Cotizador -->
+  <script src="js/cotizador.js"></script>
+
   <script>
     function toggleMenu() {
       const nav = document.getElementById('mainNav');
       if (nav) nav.classList.toggle('active');
     }
   </script>
-
-  <!-- Librerías Externas para Generación de PDF (jsPDF + autoTable) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-
-  <!-- Assets y Scripts del Cotizador -->
-  <script src="js/tridente-logo-base64.js"></script>
-  <script src="js/tridente-catalog.js"></script>
-  <script src="js/cotizador.js"></script>
-
-  <!-- Camila AI Widget — Asistente de Ventas -->
-  <script src="js/camila-widget.js" defer></script>
-
 </body>
 </html>
