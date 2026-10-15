@@ -68,8 +68,9 @@ def generate_with_fallback(contents: list, system_instruction: str) -> str:
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
-                    temperature=0.6,
-                    max_output_tokens=300,
+                    temperature=0.4,
+                    max_output_tokens=600,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
             if res and res.text:
@@ -369,7 +370,7 @@ def chat(req: ChatRequest):
     reply_clean = assistant_text
 
     try:
-        json_match = re.search(r'\{"action":\s*"redirect_whatsapp"[^}]*\}', assistant_text)
+        json_match = re.search(r'\{[^{}]*"action"\s*:\s*"redirect_whatsapp"[^{}]*\}', assistant_text, re.DOTALL)
         if json_match:
             json_str = json_match.group(0)
             action_data = json.loads(json_str)
@@ -405,8 +406,8 @@ def chat(req: ChatRequest):
             wa_text = urllib.parse.quote("\n".join(lineas))
             whatsapp_url = f"https://wa.me/{WHATSAPP_NUMBER}?text={wa_text}"
             reply_clean = assistant_text.replace(json_str, "")
-            reply_clean = re.sub(r"```json\s*```", "", reply_clean)
-            reply_clean = re.sub(r"```\s*```", "", reply_clean).strip()
+            reply_clean = re.sub(r"```json\s*", "", reply_clean)
+            reply_clean = re.sub(r"```\s*", "", reply_clean).strip()
     except Exception as exc:
         log.warning("No se pudo parsear redirect_whatsapp: %s", exc)
 
