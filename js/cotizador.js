@@ -576,7 +576,8 @@
     if (totalItemsEl) {
       totalItemsEl.textContent = `Total productos: ${totals.itemsCount} ítems (${totals.unidadesCount} un.)`;
     }
-    if (totalFinalEl) totalFinalEl.textContent = formatMoney(totals.totalFinal);
+    const finalFormatted = `${formatMoney(totals.totalFinal)}.- Imp. Inc.`;
+    if (totalFinalEl) totalFinalEl.textContent = finalFormatted;
     if (netoEl) netoEl.textContent = formatMoney(totals.subtotalNeto);
     if (ivaEl) ivaEl.textContent = formatMoney(totals.iva19);
 
@@ -798,13 +799,16 @@
       doc.setTextColor(71, 85, 105);
       doc.text(`Total productos: ${totals.itemsCount} ítems (${totals.unidadesCount} un.)`, margin, finalY);
 
+      const totalPdfStr = `${formatMoney(totals.totalFinal)}.- Imp. Inc.`;
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
       doc.setTextColor(23, 43, 77);
-      doc.text('TOTAL', pageWidth - margin - 35, finalY);
 
-      doc.setFontSize(13);
-      doc.text(formatMoney(totals.totalFinal), pageWidth - margin, finalY, { align: 'right' });
+      doc.setFontSize(12);
+      const totalStrWidth = doc.getTextWidth(totalPdfStr);
+      doc.text('TOTAL', pageWidth - margin - totalStrWidth - 6, finalY);
+      doc.text(totalPdfStr, pageWidth - margin, finalY, { align: 'right' });
 
       // 7. Condiciones de la Cotización (Pie del Documento)
       const condY = finalY + 12;
