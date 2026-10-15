@@ -19,9 +19,11 @@ from contextlib import asynccontextmanager
 from typing import Optional
 from dotenv import load_dotenv
 
+import base64
 import psycopg2
 import psycopg2.extras
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google import genai
@@ -160,6 +162,64 @@ def get_all_categorias() -> list[str]:
         return []
 
 
+# ---------------------------------------------------------------------------
+# Cache en memoria para catálogo de productos y categorías (TTL 5 min)
+# ---------------------------------------------------------------------------
+_catalog_cache = {
+    "products": [],
+    "last_fetched": 0,
+}
+
+def get_all_catalog_products() -> list[dict]:
+    """Retorna el listado completo de productos activos para el cotizador web público."""
+    now = time.time()
+    if _catalog_cache["products"] and (now - _catalog_cache["last_fetched"] < 300):
+        return _catalog_cache["products"]
+
+    sql = f"""
+        SELECT
+            p.id,
+            p.codigo,
+            p.nombre,
+            c.nombre AS categoria,
+            p.precio AS precio_unitario,
+            p.tiene_caja,
+            p.cantidad_caja,
+            p.precio_caja,
+            p.afecto,
+            (p.imagen_url IS NOT NULL AND length(p.imagen_url) > 20) AS has_image,
+            p.cantidad AS stock
+        FROM {DB_SCHEMA}.productos p
+        LEFT JOIN {DB_SCHEMA}.categorias c ON c.id = p.categoria_id
+        WHERE
+            p.activo = true
+            AND p.eliminado_at IS NULL
+        ORDER BY c.nombre NULLS LAST, p.nombre
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(sql)
+                results = []
+                for row in cur.fetchall():
+                    item = dict(row)
+                    pid = str(item["id"])
+                    item["id"] = pid
+                    item["precio_unitario"] = int(item["precio_unitario"]) if item.get("precio_unitario") is not None else 0
+                    item["precio_caja"] = int(item["precio_caja"]) if item.get("precio_caja") is not None else 0
+                    if item.get("afecto") is None:
+                        item["afecto"] = True
+                    has_img = bool(item.get("has_image"))
+                    item["imagen_url"] = f"/api/producto/{pid}/imagen" if has_img else None
+                    results.append(item)
+                _catalog_cache["products"] = results
+                _catalog_cache["last_fetched"] = now
+                return results
+    except Exception as exc:
+        log.warning("DB catalog query failed: %s", exc)
+        return _catalog_cache.get("products", [])
+
+
 STOP_WORDS = {
     "hola", "buenas", "tardes", "dias", "que", "qué", "tienen", "tienes", "venden", "vendes",
     "hay", "cuanto", "cuánto", "vale", "cuesta", "precio", "precios", "stock", "productos",
@@ -202,8 +262,10 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente, d
    PROHIBIDO agregar frases rebuscadas como "¿qué andas buscando para tu negocio hoy?". Mantén el saludo inicial simple, humano y directo.
 2. Si te dicen su nombre o se presentan:
    Saluda con amabilidad: "¡Hola [Nombre]! Mucho gusto, cuéntame en qué te puedo ayudar".
-3. Si preguntan qué productos tienes o qué vendes:
-   Responde brevemente: confites, chocolates, snacks, bebidas, abarrotes y artículos de tabaquería OCB, y compártele el enlace del catálogo: https://pedidos.distribuidoratridente.cl/Public/Catalogo
+3. Si preguntan qué productos tienes, qué vendes, lista de precios, presupuestos o si quieren armar una cotización:
+   Ofréceles proactivamente el cotizador web público y el catálogo:
+   "¡Hola! Claro que sí, puedes armar tu cotización al instante con los precios oficiales y vigentes directamente en nuestro cotizador web: https://www.distribuidoratridente.cl/cotizar. Allí seleccionas los productos que necesitas y descargas tu comprobante formal en PDF con vigencia garantizada por 72 horas."
+   (Si solo piden catálogo general, también compárteles https://pedidos.distribuidoratridente.cl/Public/Catalogo).
 4. Si preguntan por un producto específico:
    Revisa los datos del sistema adjuntos e informa el precio claro y directo en 1 línea.
    Si no está: "Ese producto justo no lo tengo disponible en el sistema en este momento, pero puedes revisar el catálogo online https://pedidos.distribuidoratridente.cl/Public/Catalogo o decirme si te sirve alguna alternativa similar 😊".
@@ -310,15 +372,22 @@ def chat(req: ChatRequest):
     terms = extract_search_terms(user_text)
     db_context = ""
 
+    # Si pregunta por cotizaciones o presupuestos
+    is_cotizar_q = any(
+        phrase in user_lower
+        for phrase in ["cotizar", "cotizacion", "cotización", "presupuesto", "armar cotizacion", "hacer cotizacion", "cotizador"]
+    )
     # Si pregunta por categorías o productos en general
     is_general_products_q = any(
         phrase in user_lower
         for phrase in ["que productos", "qué productos", "que vendes", "qué vendes", "que tienes", "qué tienes", "categorias", "categorías"]
     )
 
-    if is_general_products_q:
+    if is_cotizar_q:
+        db_context = "\n\n[COTIZADOR WEB OFICIAL: Disponemos de un cotizador web público en https://www.distribuidoratridente.cl/cotizar donde el cliente puede seleccionar productos con precios vigentes y descargar al instante su cotización formal en PDF válida por 72 horas]."
+    elif is_general_products_q:
         categorias = get_all_categorias()
-        db_context = f"\n\n[DATOS DE BASE DE DATOS: Categorías activas de la distribuidora: {', '.join(categorias)}. Catálogo completo: https://pedidos.distribuidoratridente.cl/Public/Catalogo]"
+        db_context = f"\n\n[DATOS DE BASE DE DATOS: Categorías activas de la distribuidora: {', '.join(categorias)}. Cotizador web en https://www.distribuidoratridente.cl/cotizar y Catálogo completo en https://pedidos.distribuidoratridente.cl/Public/Catalogo]"
     elif terms:
         # Buscar productos usando los términos extraídos
         found_products = []
@@ -422,6 +491,57 @@ def chat(req: ChatRequest):
 def delete_session(session_id: str):
     sessions.pop(session_id, None)
     return {"deleted": session_id}
+
+
+# ---------------------------------------------------------------------------
+# Endpoints para el Cotizador Web Público
+# ---------------------------------------------------------------------------
+
+@app.get("/api/productos")
+def api_productos():
+    """Retorna el listado completo de productos activos para el cotizador web."""
+    return get_all_catalog_products()
+
+
+@app.get("/api/categorias")
+def api_categorias():
+    """Retorna las categorías activas para el cotizador web."""
+    return get_all_categorias()
+
+
+@app.get("/api/producto/{product_id}/imagen")
+def api_producto_imagen(product_id: str):
+    """Retorna la imagen del producto en formato binario con caché HTTP de 7 días."""
+    sql = f"SELECT imagen_url FROM {DB_SCHEMA}.productos WHERE id = %s AND activo = true LIMIT 1"
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (product_id,))
+                row = cur.fetchone()
+                if not row or not row[0]:
+                    raise HTTPException(status_code=404, detail="Imagen no encontrada")
+
+                raw = str(row[0]).strip()
+                if raw.startswith("http://") or raw.startswith("https://"):
+                    return RedirectResponse(raw)
+
+                if "," in raw and "base64" in raw:
+                    raw = raw.split(",", 1)[1]
+
+                img_bytes = base64.b64decode(raw)
+                return Response(
+                    content=img_bytes,
+                    media_type="image/jpeg",
+                    headers={
+                        "Cache-Control": "public, max-age=604800, immutable",
+                        "Content-Type": "image/jpeg",
+                    },
+                )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.warning("Error al obtener imagen para producto %s: %s", product_id, exc)
+        raise HTTPException(status_code=404, detail="Error al procesar imagen")
 
 
 # ---------------------------------------------------------------------------
