@@ -753,6 +753,7 @@
     if (sendBtn) sendBtn.disabled = true;
 
     setTyping(true);
+    const startTime = Date.now();
 
     try {
       const payload = { message: text, session_id: sessionId };
@@ -765,6 +766,13 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.session_id) sessionId = data.session_id;
+
+      // Pausa humana de tipeo para simular escritura real (mínimo 1.7s)
+      const elapsed = Date.now() - startTime;
+      const minDelay = 1700;
+      if (elapsed < minDelay) {
+        await new Promise((resolve) => setTimeout(resolve, minDelay - elapsed));
+      }
 
       setTyping(false);
       appendBotMessage(formatReply(data.reply), data.whatsapp_url);
