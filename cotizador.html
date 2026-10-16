@@ -8,9 +8,9 @@
   <meta name="description" content="Cotizador oficial de Distribuidora Tridente. Arma tu cotización de productos mayoristas con precios vigentes y descarga tu comprobante formal en PDF con vigencia de 72 horas." />
 
   <!-- Google Fonts & Hoja de Estilos Principal -->
-  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css?v=2.3" />
   <!-- Estilos Dedicados del Cotizador -->
-  <link rel="stylesheet" href="css/cotizador.css" />
+  <link rel="stylesheet" href="css/cotizador.css?v=2.3" />
 </head>
 
 <body>
@@ -406,29 +406,51 @@
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
+        <!-- Columna 1: Marca -->
         <div class="footer-brand">
-          <img src="img/logo-tridente.png" alt="Distribuidora Tridente" class="footer-logo" />
-          <p>Distribuidora Mayorista líder en la Región de Coquimbo. Abastecemos a almacenes, botillerías y minimarkets.</p>
+          <a href="index.html" class="footer-logo">
+            <img src="img/logo-tridente.png" alt="Distribuidora Tridente" />
+          </a>
+          <p class="footer-desc">
+            Distribuidora mayorista en la Región de Coquimbo. Proveedor especializado en confites, chocolates, snacks, tabaco y abarrotes para almacenes y minimarkets.
+          </p>
         </div>
-        <div class="footer-links">
-          <h4>Navegación</h4>
-          <ul>
+
+        <!-- Columna 2: Enlaces Rápidos -->
+        <div>
+          <h4 class="footer-title">Navegación</h4>
+          <ul class="footer-links">
             <li><a href="index.html">Inicio</a></li>
-            <li><a href="https://pedidos.distribuidoratridente.cl/Public/Catalogo" target="_blank" rel="noopener">Catálogo</a></li>
-            <li><a href="cotizar.html" style="color: #38bdf8; font-weight: 700;">Cotizador Web (PDF)</a></li>
-            <li><a href="legal.html">Información Legal</a></li>
+            <li><a href="cotizar.html" style="color: #38bdf8; font-weight: 700;">📋 Cotizador Web Oficial</a></li>
+            <li><a href="https://pedidos.distribuidoratridente.cl/Public/Catalogo" target="_blank" rel="noopener">Catálogo Oficial</a></li>
             <li><a href="https://pedidos.distribuidoratridente.cl" target="_blank" rel="noopener">Portal de Pedidos</a></li>
+            <li><a href="legal.html">Información Legal</a></li>
           </ul>
         </div>
-        <div class="footer-contact">
-          <h4>Contacto Comercial</h4>
-          <p>📍 La Serena, Coquimbo, Ovalle y Región de Coquimbo</p>
-          <p>📱 WhatsApp Ventas: +56 9 4448 8407</p>
-          <p>⏱️ Horario: Lunes a Sábado</p>
+
+        <!-- Columna 3: Contacto -->
+        <div>
+          <h4 class="footer-title">Contacto Comercial</h4>
+          <ul class="footer-contact-list">
+            <li class="footer-contact-item">
+              <span>💬</span>
+              <a href="https://wa.me/56944488407" target="_blank" rel="noopener">+56 9 4448 8407 (WhatsApp)</a>
+            </li>
+            <li class="footer-contact-item">
+              <span>📍</span>
+              <span>La Serena, Región de Coquimbo, Chile</span>
+            </li>
+            <li class="footer-contact-item">
+              <span>⏱️</span>
+              <span>Lunes a Sábado • Atención Mayorista</span>
+            </li>
+          </ul>
         </div>
       </div>
+
       <div class="footer-bottom">
-        <p>&copy; 2026 Distribuidora Tridente. Todos los derechos reservados. Desarrollado con tecnología de punta.</p>
+        <p>© 2026 Distribuidora Tridente SpA. Todos los derechos reservados.</p>
+        <p><a href="legal.html">Términos y Aviso Legal</a></p>
       </div>
     </div>
   </footer>
