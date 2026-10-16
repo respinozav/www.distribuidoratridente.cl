@@ -869,8 +869,24 @@
       const usableWidth = pageWidth - margin * 2;
 
       // 1. Logo Tridente Oficial (Top-Left)
-      if (typeof window.TRIDENTE_LOGO_BASE64 !== 'undefined') {
-        doc.addImage(window.TRIDENTE_LOGO_BASE64, 'PNG', margin, 14, 22, 24.2);
+      const logoData = (typeof window !== 'undefined' && window.TRIDENTE_LOGO_BASE64)
+        || (typeof TRIDENTE_LOGO_BASE64 !== 'undefined' ? TRIDENTE_LOGO_BASE64 : null);
+
+      if (logoData) {
+        try {
+          doc.addImage(logoData, 'PNG', margin, 14, 22, 24.2);
+        } catch (imgErr) {
+          console.warn('Error al insertar logo base64 en PDF:', imgErr);
+        }
+      } else {
+        const headerLogo = document.querySelector('.header .logo img') || document.querySelector('img[alt*="Tridente"]');
+        if (headerLogo) {
+          try {
+            doc.addImage(headerLogo, 'PNG', margin, 14, 22, 24.2);
+          } catch (domErr) {
+            console.warn('Error al insertar logo del header en PDF:', domErr);
+          }
+        }
       }
 
       // 2. Título Formal (Top-Right): COTIZACIÓN #COT-XXXXXX
