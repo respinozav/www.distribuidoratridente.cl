@@ -803,6 +803,29 @@
     return allValid;
   }
 
+  // ─── Guardar Cotización en Base de Datos (Cliente y Productos con Fechas) ──
+  async function saveCotizacionToBackend(payload) {
+    try {
+      const res = await fetch('https://camila.distribuidoratridente.cl/api/cotizaciones', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        console.info('✓ Cotización guardada exitosamente en BD:', json);
+      } else {
+        console.warn('Servidor retornó estado no esperado al guardar cotización:', res.status);
+      }
+    } catch (err) {
+      console.warn('Aviso: Guardado en BD no disponible (modo offline o fallback):', err);
+    }
+  }
+
   // ─── Generación de PDF Idéntica al Screenshot Oficial ───────────────────────
   async function generateCotizacionPDF() {
     if (!checkDownloadState()) {
@@ -1040,12 +1063,50 @@
       doc.setTextColor(148, 163, 184);
       doc.text('(Firma y Timbre Conforme)', col2X, sigY + 22);
 
-      // 8. Descarga Automática del PDF
+      // 8. Registro en Base de Datos (Datos del Cliente y Productos con Fechas)
+      const cotizacionPayload = {
+        folio: cotCode,
+        cliente: {
+          razon_social: rs,
+          rut: rut,
+          telefono: tel,
+          correo: email,
+          direccion: dir,
+          observaciones: obs,
+        },
+        totales: {
+          subtotal_neto: totals.subtotalNeto,
+          subtotal_exento: totals.subtotalExento,
+          iva: totals.iva19,
+          total: totals.totalFinal,
+          total_items: totals.itemsCount,
+          total_unidades: totals.unidadesCount,
+        },
+        vigencia: {
+          fecha_emision: new Date().toISOString(),
+          fecha_vencimiento: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+        },
+        productos: state.cart.map((item) => ({
+          id: String(item.id || ''),
+          codigo: item.codigo || 'S/C',
+          nombre: item.nombre,
+          tipo_empaque: item.tipo_empaque || 'unidad',
+          cantidad_caja: item.cantidad_caja || null,
+          precio_unitario: Number(item.precio_unitario) || 0,
+          cantidad: Number(item.cantidad) || 1,
+          subtotal: Number(item.precio_unitario * item.cantidad) || 0,
+          afecto: Boolean(item.afecto),
+        })),
+      };
+
+      saveCotizacionToBackend(cotizacionPayload);
+
+      // 9. Descarga Automática del PDF
       const sanitizedName = rs.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ\s_-]/g, '').trim() || 'Cliente';
       const filename = `Cotizacion - ${sanitizedName} - ${cotCode}.pdf`;
 
       doc.save(filename);
-      showToast(`¡Cotización descargada con éxito! (${filename})`, 'success');
+      showToast(`¡Cotización generada y descargada con éxito! (${filename})`, 'success');
     } catch (err) {
       console.error('Error generando PDF:', err);
       showToast('Ocurrió un error al generar el PDF. Intenta nuevamente.', 'error');
