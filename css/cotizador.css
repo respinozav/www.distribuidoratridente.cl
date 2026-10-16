@@ -364,10 +364,48 @@
   grid-column: 1 / -1;
 }
 
-.selector-label {
-  font-size: 0.82rem;
+.selector-product-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.selector-action-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.multi-hint {
+  font-weight: normal;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.selection-status-badge {
+  font-size: 0.75rem;
   font-weight: 700;
-  color: #334155;
+  color: #146CCE;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.btn-text-link {
+  background: none;
+  border: none;
+  color: var(--tridente-blue);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.btn-text-link:hover {
+  color: var(--tridente-blue-hover);
 }
 
 .selector-select,
@@ -381,6 +419,112 @@
   border-radius: 6px;
   transition: all 0.2s ease;
   font-family: inherit;
+}
+
+.selector-select.selector-multi {
+  height: auto;
+  min-height: 180px;
+  max-height: 240px;
+  padding: 6px;
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.selector-select.selector-multi option {
+  padding: 8px 10px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  transition: background 0.12s;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.selector-select.selector-multi option:hover {
+  background-color: #f1f5f9;
+}
+
+.selector-select.selector-multi option:checked {
+  background-color: #dbeafe !important;
+  color: #1e3a8a !important;
+  font-weight: 600;
+}
+
+.selector-select.selector-multi option.option-agregado {
+  background-color: #f0fdf4;
+  color: #15803d;
+  font-weight: 600;
+}
+
+.selector-select.selector-multi option.option-agregado:checked {
+  background-color: #bbf7d0 !important;
+  color: #14532d !important;
+}
+
+.selector-help-note {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 5px;
+  display: block;
+  line-height: 1.4;
+}
+
+/* Ficha de Selección Múltiple */
+.multi-selected-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.multi-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.multi-card-count {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #166534;
+}
+
+.multi-card-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.multi-thumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.multi-thumb-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  border-radius: 3px;
+}
+
+.selector-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
 }
 
 .selector-select:focus,
@@ -835,6 +979,71 @@
   font-size: 0.8rem;
   color: #64748b;
   line-height: 1.4;
+}
+
+/* ==================== PIE DE FIRMA (IDÉNTICO AL PDF) ==================== */
+.pdf-sheet-signature-block {
+  margin-top: 2.25rem;
+  padding-top: 2rem;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.signature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3.5rem;
+  align-items: start;
+}
+
+@media (max-width: 640px) {
+  .signature-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
+.signature-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.sig-line {
+  width: 100%;
+  max-width: 280px;
+  border-top: 1.5px solid #475569;
+  margin-bottom: 8px;
+}
+
+.sig-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--tridente-navy);
+  letter-spacing: -0.01em;
+  margin-bottom: 3px;
+}
+
+.sig-subtitle {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.sig-client-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.8rem;
+  color: #334155;
+  margin-top: 2px;
+}
+
+.sig-hint {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-style: italic;
+  margin-top: 3px;
 }
 
 /* ==================== BLOQUE DE DESCARGA PDF EXCLUSIVO ==================== */

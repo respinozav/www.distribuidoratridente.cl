@@ -30,6 +30,7 @@
       direccion: false,
     },
     selectedProduct: null,
+    selectedProductIds: [],
     selectedPackaging: 'unidad',
     selectedQty: 1,
     filterCategory: '',
@@ -284,36 +285,188 @@
     if (!select) return;
 
     const filtered = getFilteredProducts();
-    const prevSelectedId = state.selectedProduct ? state.selectedProduct.id : '';
+    const countBadge = document.getElementById('selectedCountBadge');
+    const btnSelectAll = document.getElementById('btnSelectAllFiltered');
+    const btnClear = document.getElementById('btnClearSelection');
 
     select.innerHTML = '';
-    const defaultOpt = document.createElement('option');
-    defaultOpt.value = '';
-    defaultOpt.textContent = filtered.length > 0
-      ? `-- Elige un producto de la lista (${filtered.length} encontrados) --`
-      : '-- No se encontraron productos coincidentes --';
-    select.appendChild(defaultOpt);
+
+    if (filtered.length === 0) {
+      const emptyOpt = document.createElement('option');
+      emptyOpt.value = '';
+      emptyOpt.textContent = '-- No se encontraron productos coincidentes --';
+      emptyOpt.disabled = true;
+      select.appendChild(emptyOpt);
+      if (btnSelectAll) btnSelectAll.style.display = 'none';
+      updateSelectionUI();
+      return;
+    }
 
     filtered.forEach((p) => {
       const opt = document.createElement('option');
       opt.value = p.id;
       const sku = p.codigo ? `[${p.codigo}]` : '';
       const precio = formatMoney(p.precio_unitario);
-      opt.textContent = `${p.nombre} ${sku} - ${precio}`;
-      if (p.id === prevSelectedId) {
+      const inCart = state.cart.some((item) => item.id === p.id);
+
+      if (inCart) {
+        opt.textContent = `✓ [AGREGADO] ${p.nombre} ${sku} - ${precio}`;
+        opt.className = 'option-agregado';
+      } else {
+        opt.textContent = `${p.nombre} ${sku} - ${precio}`;
+      }
+
+      if (state.selectedProductIds.includes(p.id)) {
         opt.selected = true;
       }
       select.appendChild(opt);
     });
 
-    // Si había un producto seleccionado pero ya no está en el filtro, ocultar preview
-    if (prevSelectedId) {
-      const stillThere = filtered.some((p) => p.id === prevSelectedId);
-      if (!stillThere) {
-        state.selectedProduct = null;
-        updateProductPreviewCard();
+    if (btnSelectAll) {
+      btnSelectAll.style.display = 'inline-block';
+      btnSelectAll.textContent = `Seleccionar todos (${filtered.length})`;
+    }
+
+    updateSelectionUI();
+  }
+
+  // ─── Sincronizar Selección desde el DOM ─────────────────────────────────────
+  function syncSelectedFromDom() {
+    const select = document.getElementById('selectProducto');
+    if (!select) return;
+
+    const selectedVals = Array.from(select.selectedOptions)
+      .map((opt) => opt.value)
+      .filter(Boolean);
+
+    state.selectedProductIds = selectedVals;
+    updateSelectionUI();
+  }
+
+  // ─── Actualizar UI según Conteo de Productos Seleccionados ──────────────────
+  function updateSelectionUI() {
+    const countBadge = document.getElementById('selectedCountBadge');
+    const btnClear = document.getElementById('btnClearSelection');
+    const singleCard = document.getElementById('selectedProductCard');
+    const multiCard = document.getElementById('multiSelectedCard');
+    const multiCountText = document.getElementById('multiCardCountText');
+    const multiThumbs = document.getElementById('multiCardThumbs');
+
+    const selCount = state.selectedProductIds.length;
+
+    // Badges y botones auxiliares
+    if (countBadge) {
+      if (selCount > 0) {
+        countBadge.style.display = 'inline-block';
+        countBadge.textContent = `${selCount} seleccionado${selCount > 1 ? 's' : ''}`;
+      } else {
+        countBadge.style.display = 'none';
       }
     }
+
+    if (btnClear) {
+      btnClear.style.display = selCount > 0 ? 'inline-block' : 'none';
+    }
+
+    // Caso 1: Ningún producto seleccionado
+    if (selCount === 0) {
+      state.selectedProduct = null;
+      if (singleCard) singleCard.style.display = 'none';
+      if (multiCard) multiCard.style.display = 'none';
+      return;
+    }
+
+    // Caso 2: Exactamente 1 producto seleccionado
+    if (selCount === 1) {
+      if (multiCard) multiCard.style.display = 'none';
+      const prodId = state.selectedProductIds[0];
+      state.selectedProduct = state.products.find((p) => p.id === prodId) || null;
+      updateProductPreviewCard();
+      return;
+    }
+
+    // Caso 3: Múltiples productos seleccionados (> 1)
+    state.selectedProduct = null;
+    if (singleCard) singleCard.style.display = 'none';
+
+    if (multiCard) {
+      multiCard.style.display = 'flex';
+      if (multiCountText) {
+        multiCountText.textContent = `${selCount} productos seleccionados listos para agregar`;
+      }
+
+      if (multiThumbs) {
+        const selectedProds = state.selectedProductIds
+          .map((id) => state.products.find((p) => p.id === id))
+          .filter(Boolean);
+
+        let thumbsHtml = '';
+        selectedProds.slice(0, 12).forEach((p) => {
+          const imgSrc = p.imagen_url
+            ? (p.imagen_url.startsWith('http') ? p.imagen_url : `https://camila.distribuidoratridente.cl${p.imagen_url}`)
+            : 'img/logo-tridente-pdf.png';
+
+          thumbsHtml += `
+            <div class="multi-thumb-item" title="${p.nombre}">
+              <img src="${imgSrc}" alt="${p.nombre}" class="multi-thumb-img" onerror="this.onerror=null; this.src='img/logo-tridente-pdf.png';" />
+              <span>${p.nombre}</span>
+              <strong style="color:var(--tridente-blue, #146CCE);">${formatMoney(p.precio_unitario)}</strong>
+            </div>
+          `;
+        });
+
+        if (selectedProds.length > 12) {
+          thumbsHtml += `<div class="multi-thumb-item" style="background:#e2e8f0; font-weight:700;">+${selectedProds.length - 12} más</div>`;
+        }
+
+        multiThumbs.innerHTML = thumbsHtml;
+      }
+    }
+  }
+
+  // ─── Agregar Múltiples Productos en Bloque a la Cotización ──────────────────
+  function addMultipleSelectedProducts() {
+    if (state.selectedProductIds.length === 0) {
+      showToast('Selecciona al menos un producto para agregar.', 'warning');
+      return;
+    }
+
+    let addedCount = 0;
+    state.selectedProductIds.forEach((pid) => {
+      const prod = state.products.find((p) => p.id === pid);
+      if (!prod) return;
+
+      const existingIdx = state.cart.findIndex(
+        (item) => item.id === prod.id && item.tipo_empaque === 'unidad'
+      );
+
+      if (existingIdx >= 0) {
+        state.cart[existingIdx].cantidad += 1;
+      } else {
+        state.cart.push({
+          id: prod.id,
+          codigo: prod.codigo || 'S/C',
+          nombre: prod.nombre,
+          tipo_empaque: 'unidad',
+          cantidad_caja: prod.cantidad_caja || null,
+          precio_unitario: prod.precio_unitario,
+          cantidad: 1,
+          afecto: Boolean(prod.afecto),
+          imagen_url: prod.imagen_url || null,
+        });
+      }
+      addedCount++;
+    });
+
+    renderCotizacionTable();
+    checkDownloadState();
+
+    showToast(`✓ Se agregaron ${addedCount} productos a la cotización`, 'success');
+
+    // Deseleccionar y actualizar select para mostrar la marca ✓ [AGREGADO]
+    state.selectedProductIds = [];
+    state.selectedProduct = null;
+    populateProductSelect();
   }
 
   // ─── Actualización de la Ficha / Preview del Producto Seleccionado ──────────
@@ -429,9 +582,12 @@
     const empaqueTxt = isCaja ? `Caja(s) x${prod.cantidad_caja || 1}` : 'unid.';
     showToast(`✓ Agregado: ${prod.nombre} (${cantidad} ${empaqueTxt})`, 'success');
 
-    // Reset cantidad a 1
+    // Reset cantidad a 1 y refrescar select para mostrar ✓ [AGREGADO]
     if (qtyInput) qtyInput.value = '1';
     state.selectedQty = 1;
+    state.selectedProductIds = [];
+    state.selectedProduct = null;
+    populateProductSelect();
   }
 
   // ─── Modificar / Eliminar Productos de la Tabla ──────────────────────────────
@@ -450,6 +606,7 @@
     state.cart.splice(index, 1);
     renderCotizacionTable();
     checkDownloadState();
+    populateProductSelect();
     if (item) showToast(`Eliminado: ${item.nombre}`, 'info');
   }
 
@@ -832,6 +989,57 @@
         doc.text(bp, margin, condY + 4 + idx * 3.8);
       });
 
+      // 8. Pie de Firma Oficial (Distribuidora Tridente SpA y Aceptación Cliente)
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let sigY = condY + 4 + bulletPoints.length * 3.8 + 14;
+
+      // Si el espacio restante es menor a 30 mm antes del margen, agregar página
+      if (sigY + 30 > pageHeight - margin) {
+        doc.addPage();
+        sigY = 28;
+      }
+
+      const colWidth = (usableWidth - 14) / 2;
+      const col1X = margin;
+      const col2X = margin + colWidth + 14;
+
+      // Columna 1: Firma Distribuidora Tridente SpA
+      doc.setDrawColor(71, 85, 105);
+      doc.setLineWidth(0.6);
+      doc.line(col1X, sigY, col1X + colWidth, sigY);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(23, 43, 77);
+      doc.text('DISTRIBUIDORA TRIDENTE SpA', col1X, sigY + 5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('Firma Autorizada / Área de Ventas', col1X, sigY + 9.5);
+
+      // Columna 2: Firma Aceptación y Conformidad Cliente
+      doc.setDrawColor(71, 85, 105);
+      doc.setLineWidth(0.6);
+      doc.line(col2X, sigY, col2X + colWidth, sigY);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(23, 43, 77);
+      doc.text('ACEPTACIÓN Y CONFORMIDAD CLIENTE', col2X, sigY + 5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(51, 65, 85);
+      doc.text(`Nombre: ${rs || 'Cliente'}`, col2X, sigY + 9.5);
+      doc.text(`RUT: ${rut || '__________________'}`, col2X, sigY + 13.5);
+      doc.text(`Fecha: ${v.issuedDate}`, col2X, sigY + 17.5);
+
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text('(Firma y Timbre Conforme)', col2X, sigY + 22);
+
       // 8. Descarga Automática del PDF
       const sanitizedName = rs.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ\s_-]/g, '').trim() || 'Cliente';
       const filename = `Cotizacion - ${sanitizedName} - ${cotCode}.pdf`;
@@ -888,16 +1096,51 @@
       populateProductSelect();
     });
 
-    // Selector de Producto
+    // Selector de Producto con Selección Múltiple y Clic Directo sin perder historial
     const selectProd = document.getElementById('selectProducto');
-    selectProd?.addEventListener('change', (e) => {
-      const pid = e.target.value;
-      if (!pid) {
-        state.selectedProduct = null;
-      } else {
-        state.selectedProduct = state.products.find((p) => p.id === pid) || null;
+    selectProd?.addEventListener('mousedown', function (e) {
+      if (e.target && e.target.tagName === 'OPTION') {
+        const opt = e.target;
+        if (!opt.value) return;
+        e.preventDefault(); // Permite alternar selecciones con clic sin deseleccionar las demás
+        opt.selected = !opt.selected;
+        syncSelectedFromDom();
       }
-      updateProductPreviewCard();
+    });
+
+    selectProd?.addEventListener('change', () => {
+      syncSelectedFromDom();
+    });
+
+    // Botones de Selección Rápida en el Selector
+    const btnSelectAll = document.getElementById('btnSelectAllFiltered');
+    btnSelectAll?.addEventListener('click', () => {
+      const filtered = getFilteredProducts();
+      state.selectedProductIds = filtered.map((p) => p.id);
+      if (selectProd) {
+        Array.from(selectProd.options).forEach((opt) => {
+          if (opt.value) opt.selected = true;
+        });
+      }
+      updateSelectionUI();
+    });
+
+    const btnClearSelection = document.getElementById('btnClearSelection');
+    btnClearSelection?.addEventListener('click', () => {
+      state.selectedProductIds = [];
+      state.selectedProduct = null;
+      if (selectProd) {
+        Array.from(selectProd.options).forEach((opt) => {
+          opt.selected = false;
+        });
+      }
+      updateSelectionUI();
+    });
+
+    // Botón Agregar Múltiples Productos
+    const btnAddMulti = document.getElementById('btnAddMultiProducts');
+    btnAddMulti?.addEventListener('click', () => {
+      addMultipleSelectedProducts();
     });
 
     // Radio de Empaque (Unidad vs Caja)
@@ -944,13 +1187,13 @@
       state.selectedQty = val;
     });
 
-    // Botón Agregar Producto Seleccionado
+    // Botón Agregar Producto Seleccionado Individual
     const btnAdd = document.getElementById('btnAddSelectedProduct');
     btnAdd?.addEventListener('click', () => {
       addCurrentSelectedProduct();
     });
 
-    // Listeners del Formulario de Cliente
+    // Listeners del Formulario de Cliente y Sincronización en Vivo del Pie de Firma
     const rsInput = document.getElementById('clientRazonSocial');
     const rutInput = document.getElementById('clientRut');
     const rutErr = document.getElementById('clientRutError');
@@ -959,10 +1202,18 @@
     const dirInput = document.getElementById('clientDireccion');
     const obsInput = document.getElementById('clientObservaciones');
 
+    const sigNameEl = document.getElementById('sigClientName');
+    const sigRutEl = document.getElementById('sigClientRut');
+    const sigDateEl = document.getElementById('sigClientDate');
+
+    if (sigDateEl) sigDateEl.textContent = v.issuedDate;
+
     rsInput?.addEventListener('input', () => {
-      const valid = rsInput.value.trim().length >= 3;
+      const val = rsInput.value.trim();
+      const valid = val.length >= 3;
       rsInput.classList.toggle('is-valid', valid);
       rsInput.classList.toggle('is-invalid', !valid && rsInput.value.length > 0);
+      if (sigNameEl) sigNameEl.textContent = val || 'Cliente';
       checkDownloadState();
     });
 
@@ -973,6 +1224,8 @@
 
       rutInput.classList.toggle('is-valid', valid);
       rutInput.classList.toggle('is-invalid', !valid && formatted.length > 2);
+
+      if (sigRutEl) sigRutEl.textContent = formatted || '__________________';
 
       if (rutErr) {
         if (!formatted) {
