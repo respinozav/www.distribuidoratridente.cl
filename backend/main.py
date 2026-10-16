@@ -46,10 +46,14 @@ DB_SCHEMA       = os.environ.get("DATABASE_SCHEMA", "bdtridente")
 DB_USER         = os.environ.get("DATABASE_USER", "postgres")
 DB_PASSWORD     = os.environ.get("DATABASE_PASSWORD", "")
 WHATSAPP_NUMBER = os.environ.get("WHATSAPP_NUMBER", "56944488407")
-ALLOWED_ORIGINS = os.environ.get(
-    "ALLOWED_ORIGINS",
-    "https://www.distribuidoratridente.cl,https://camila.distribuidoratridente.cl,http://localhost,http://127.0.0.1"
-).split(",")
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        "ALLOWED_ORIGINS",
+        "https://www.distribuidoratridente.cl,https://distribuidoratridente.cl,https://camila.distribuidoratridente.cl,https://pedidos.distribuidoratridente.cl,http://localhost,http://127.0.0.1",
+    ).split(",")
+    if o.strip()
+]
 
 # ---------------------------------------------------------------------------
 # Gemini Client y Modelos con Fallback
@@ -366,7 +370,7 @@ app = FastAPI(title="Camila – Ventas Distribuidora Tridente", version="1.0.0",
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"http://localhost(:\d+)?",
+    allow_origin_regex=r"https?://.*distribuidoratridente\.cl(:[0-9]+)?|https?://localhost(:[0-9]+)?|https?://127\.0\.0\.1(:[0-9]+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -806,6 +806,7 @@
   // ─── Guardar Cotización en Base de Datos (Cliente y Productos con Fechas) ──
   async function saveCotizacionToBackend(payload) {
     try {
+      console.log('Guardando cotización en base de datos...', payload.folio);
       const res = await fetch('https://camila.distribuidoratridente.cl/api/cotizaciones', {
         method: 'POST',
         headers: {
@@ -818,11 +819,15 @@
       if (res.ok) {
         const json = await res.json();
         console.info('✓ Cotización guardada exitosamente en BD:', json);
+        return true;
       } else {
-        console.warn('Servidor retornó estado no esperado al guardar cotización:', res.status);
+        const errDetail = await res.text();
+        console.warn('Servidor retornó error al guardar cotización:', res.status, errDetail);
+        return false;
       }
     } catch (err) {
-      console.warn('Aviso: Guardado en BD no disponible (modo offline o fallback):', err);
+      console.warn('Aviso: Guardado en BD no disponible (posible error de conexión o CORS):', err);
+      return false;
     }
   }
 
@@ -979,16 +984,12 @@
       doc.setTextColor(71, 85, 105);
       doc.text(`Total productos: ${totals.itemsCount} ítems (${totals.unidadesCount} un.)`, margin, finalY);
 
-      const totalPdfStr = `${formatMoney(totals.totalFinal)}.- Imp. Inc.`;
+      const totalPdfFormatted = `TOTAL: ${formatMoney(totals.totalFinal)}.- Imp. Inc.`;
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.setTextColor(23, 43, 77);
-
-      doc.setFontSize(12);
-      const totalStrWidth = doc.getTextWidth(totalPdfStr);
-      doc.text('TOTAL', pageWidth - margin - totalStrWidth - 6, finalY);
-      doc.text(totalPdfStr, pageWidth - margin, finalY, { align: 'right' });
+      doc.setFontSize(11.5);
+      doc.setTextColor(20, 108, 206);
+      doc.text(totalPdfFormatted, pageWidth - margin, finalY, { align: 'right' });
 
       // 7. Condiciones de la Cotización (Pie del Documento)
       const condY = finalY + 12;
@@ -1099,14 +1100,18 @@
         })),
       };
 
-      saveCotizacionToBackend(cotizacionPayload);
+      const saveOk = await saveCotizacionToBackend(cotizacionPayload);
 
       // 9. Descarga Automática del PDF
       const sanitizedName = rs.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ\s_-]/g, '').trim() || 'Cliente';
       const filename = `Cotizacion - ${sanitizedName} - ${cotCode}.pdf`;
 
       doc.save(filename);
-      showToast(`¡Cotización generada y descargada con éxito! (${filename})`, 'success');
+      if (saveOk) {
+        showToast(`¡Cotización generada y guardada en BD! (${filename})`, 'success');
+      } else {
+        showToast(`¡Cotización generada y descargada! (${filename})`, 'success');
+      }
     } catch (err) {
       console.error('Error generando PDF:', err);
       showToast('Ocurrió un error al generar el PDF. Intenta nuevamente.', 'error');
