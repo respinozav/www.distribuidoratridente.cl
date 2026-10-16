@@ -688,35 +688,53 @@ def guardar_cotizacion(req: GuardarCotizacionRequest, request: Request):
 
         productos_json = json.dumps([p.model_dump() for p in req.productos], ensure_ascii=False)
 
-        sql_cotizacion = f"""
-            INSERT INTO {DB_SCHEMA}.cotizaciones_clientes (
-                folio,
-                cliente_razon_social,
-                cliente_rut,
-                cliente_telefono,
-                cliente_correo,
-                cliente_direccion,
-                cliente_observaciones,
-                fecha_emision,
-                fecha_vencimiento,
-                subtotal_neto,
-                subtotal_exento,
-                iva,
-                total,
-                total_items,
-                total_unidades,
-                productos,
-                estado,
-                ip_origen,
-                user_agent
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-            )
-            RETURNING id;
-        """
 
         with get_db() as conn:
             with conn.cursor() as cur:
+                # 1. Comprobar si el folio ya existe para evitar inserciones masivas/duplicadas
+                cur.execute(
+                    f"SELECT id FROM {DB_SCHEMA}.cotizaciones_clientes WHERE folio = %s LIMIT 1",
+                    (req.folio,)
+                )
+                existing = cur.fetchone()
+                if existing:
+                    log.info("ℹ Folio %s ya se encuentra registrado (id=%s). Retornando éxito sin duplicar.", req.folio, existing[0])
+                    return {
+                        "success": True,
+                        "folio": req.folio,
+                        "cotizacion_id": str(existing[0]),
+                        "message": "Cotización ya registrada previamente",
+                        "duplicated": True
+                    }
+
+                sql_cotizacion = f"""
+                    INSERT INTO {DB_SCHEMA}.cotizaciones_clientes (
+                        folio,
+                        cliente_razon_social,
+                        cliente_rut,
+                        cliente_telefono,
+                        cliente_correo,
+                        cliente_direccion,
+                        cliente_observaciones,
+                        fecha_emision,
+                        fecha_vencimiento,
+                        subtotal_neto,
+                        subtotal_exento,
+                        iva,
+                        total,
+                        total_items,
+                        total_unidades,
+                        productos,
+                        estado,
+                        ip_origen,
+                        user_agent
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    )
+                    ON CONFLICT (folio) DO NOTHING
+                    RETURNING id;
+                """
+
                 cur.execute(
                     sql_cotizacion,
                     (
@@ -741,7 +759,18 @@ def guardar_cotizacion(req: GuardarCotizacionRequest, request: Request):
                         user_agent,
                     )
                 )
-                cot_id = cur.fetchone()[0]
+                row = cur.fetchone()
+                if not row:
+                    cur.execute(f"SELECT id FROM {DB_SCHEMA}.cotizaciones_clientes WHERE folio = %s", (req.folio,))
+                    row = cur.fetchone()
+                    return {
+                        "success": True,
+                        "folio": req.folio,
+                        "cotizacion_id": str(row[0]) if row else "",
+                        "message": "Cotización ya registrada previamente",
+                        "duplicated": True
+                    }
+                cot_id = row[0]
 
                 # Insertar detalle de cada producto cotizado
                 sql_item = f"""

@@ -1013,56 +1013,6 @@
         doc.text(bp, margin, condY + 4 + idx * 3.8);
       });
 
-      // 8. Pie de Firma Oficial (Distribuidora Tridente SpA y Aceptación Cliente)
-      const pageHeight = doc.internal.pageSize.getHeight();
-      let sigY = condY + 4 + bulletPoints.length * 3.8 + 14;
-
-      // Si el espacio restante es menor a 30 mm antes del margen, agregar página
-      if (sigY + 30 > pageHeight - margin) {
-        doc.addPage();
-        sigY = 28;
-      }
-
-      const colWidth = (usableWidth - 14) / 2;
-      const col1X = margin;
-      const col2X = margin + colWidth + 14;
-
-      // Columna 1: Firma Distribuidora Tridente SpA
-      doc.setDrawColor(71, 85, 105);
-      doc.setLineWidth(0.6);
-      doc.line(col1X, sigY, col1X + colWidth, sigY);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(23, 43, 77);
-      doc.text('DISTRIBUIDORA TRIDENTE SpA', col1X, sigY + 5);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text('Firma Autorizada / Área de Ventas', col1X, sigY + 9.5);
-
-      // Columna 2: Firma Aceptación y Conformidad Cliente
-      doc.setDrawColor(71, 85, 105);
-      doc.setLineWidth(0.6);
-      doc.line(col2X, sigY, col2X + colWidth, sigY);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(23, 43, 77);
-      doc.text('ACEPTACIÓN Y CONFORMIDAD CLIENTE', col2X, sigY + 5);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(51, 65, 85);
-      doc.text(`Nombre: ${rs || 'Cliente'}`, col2X, sigY + 9.5);
-      doc.text(`RUT: ${rut || '__________________'}`, col2X, sigY + 13.5);
-      doc.text(`Fecha: ${v.issuedDate}`, col2X, sigY + 17.5);
-
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(7);
-      doc.setTextColor(148, 163, 184);
-      doc.text('(Firma y Timbre Conforme)', col2X, sigY + 22);
 
       // 8. Registro en Base de Datos (Datos del Cliente y Productos con Fechas)
       const cotizacionPayload = {
