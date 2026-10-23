@@ -51,10 +51,10 @@
     out = out.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
     // Viñetas * item o - item al inicio de línea
     out = out.replace(/^[*-]\s+(.+)$/gm, '• $1');
-    // URLs clickeables
+    // URLs clickeables (limpiando puntos o signos pegados al final para evitar 404)
     out = out.replace(
-      /(https?:\/\/[^\s<]+)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" class="wa-link">$1</a>'
+      /(https?:\/\/[^\s<]+?)([.,!?;:]*)(?=\s|$|<)/g,
+      (match, url, punct) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="wa-link">${url}</a>${punct}`
     );
     // Saltos de línea
     out = out.replace(/\n/g, '<br>');
@@ -609,7 +609,7 @@
           <div class="wa-header-info">
             <h4 class="wa-contact-name">Camila</h4>
             <p class="wa-contact-status" id="camilaStatusText">
-              <span class="wa-status-dot"></span> en línea
+              <span class="wa-status-dot"></span> Asistente Virtual • Tridente
             </p>
           </div>
           <div class="wa-header-actions">
@@ -629,9 +629,23 @@
 
           <!-- Chip de aviso -->
           <div class="wa-chip-notice">
-            🔒 Chat directo con <strong>Camila</strong> • Ventas Distribuidora Tridente
+            🔒 Chat con <strong>Camila</strong> • Asistente Virtual de Ventas
           </div>
 
+          <!-- Mensaje inicial de bienvenida -->
+          <div class="wa-bubble-wrap wa-bubble-in" id="camilaInitialGreeting">
+            <div class="wa-bubble">
+              ¡Hola! Le doy la bienvenida a Distribuidora Tridente. Soy Camila, asistente virtual de ventas. ¿En qué le puedo orientar hoy?
+              <span class="wa-bubble-meta">${getTime()}</span>
+            </div>
+          </div>
+
+          <!-- Chips de consulta rápida (Página 3 y 9 del informe) -->
+          <div class="wa-quick-chips" id="camilaQuickChips">
+            <button type="button" class="wa-chip-btn" data-msg="Ver catálogo">📖 Ver catálogo</button>
+            <button type="button" class="wa-chip-btn" data-msg="¿Cuál es el pedido mínimo?">📦 Pedido mínimo</button>
+            <button type="button" class="wa-chip-btn" data-msg="Quisiera hablar con un vendedor">👤 Hablar con un vendedor</button>
+          </div>
 
           <!-- Burbuja de escritura -->
           <div class="wa-typing-bubble" id="camilaTyping">
@@ -647,7 +661,7 @@
             type="text"
             id="camilaChatInput"
             class="wa-input-pill"
-            placeholder="Escribe un mensaje aquí..."
+            placeholder="Escriba su consulta aquí..."
             autocomplete="off"
             maxlength="300"
           />
@@ -663,7 +677,39 @@
     document.body.appendChild(widget);
   }
 
-  // ─── Helpers de Mensajes ──────────────────────────────────────────────────
+  // ─── Helpers de Mensajes y Persistencia ───────────────────────────────────
+  const STORAGE_KEY_MSGS = 'camila_chat_history_v2';
+  const STORAGE_KEY_SID  = 'camila_chat_sid_v2';
+
+  function saveMessageToStorage(item) {
+    try {
+      const history = JSON.parse(sessionStorage.getItem(STORAGE_KEY_MSGS) || '[]');
+      history.push(item);
+      sessionStorage.setItem(STORAGE_KEY_MSGS, JSON.stringify(history.slice(-30)));
+    } catch (_) {}
+  }
+
+  function restoreHistory() {
+    try {
+      const storedSid = sessionStorage.getItem(STORAGE_KEY_SID);
+      if (storedSid) sessionId = storedSid;
+
+      const history = JSON.parse(sessionStorage.getItem(STORAGE_KEY_MSGS) || '[]');
+      if (history && history.length > 0) {
+        const chips = document.getElementById('camilaQuickChips');
+        if (chips) chips.style.display = 'none';
+
+        history.forEach(item => {
+          if (item.type === 'user') {
+            renderUserMessageDirect(item.text, item.time);
+          } else if (item.type === 'bot') {
+            renderBotMessageDirect(item.html, item.whatsappUrl, item.time);
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
   function scrollBottom() {
     const el = document.getElementById('camilaMessages');
     if (el) el.scrollTop = el.scrollHeight;
@@ -676,12 +722,12 @@
     if (status) {
       status.innerHTML = active
         ? '<em>escribiendo...</em>'
-        : '<span class="wa-status-dot"></span> en línea';
+        : '<span class="wa-status-dot"></span> Asistente Virtual • Tridente';
     }
     scrollBottom();
   }
 
-  function appendUserMessage(text) {
+  function renderUserMessageDirect(text, timeStr) {
     const messages = document.getElementById('camilaMessages');
     if (!messages) return;
 
@@ -691,7 +737,7 @@
       <div class="wa-bubble">
         ${formatReply(text)}
         <span class="wa-bubble-meta">
-          ${getTime()}
+          ${timeStr || getTime()}
           <span class="wa-ticks">✓✓</span>
         </span>
       </div>
@@ -699,10 +745,9 @@
     const typing = document.getElementById('camilaTyping');
     if (typing) messages.insertBefore(wrap, typing);
     else messages.appendChild(wrap);
-    scrollBottom();
   }
 
-  function appendBotMessage(replyHtml, whatsappUrl) {
+  function renderBotMessageDirect(replyHtml, whatsappUrl, timeStr) {
     const messages = document.getElementById('camilaMessages');
     if (!messages) return;
 
@@ -714,10 +759,10 @@
       actionHTML = `
         <div class="wa-action-card">
           <div class="wa-action-title">
-            ✅ ¡Datos listos para registrarte!
+            ✅ ¡Datos listos para coordinar!
           </div>
           <div class="wa-action-desc">
-            Toca el botón verde para abrir WhatsApp y nuestro equipo de ventas te contacta al tiro:
+            Para continuar la atención con nuestro equipo de ventas, presione el botón de abajo:
           </div>
           <a href="${whatsappUrl}" target="_blank" rel="noopener noreferrer" class="wa-action-btn">
             <svg viewBox="0 0 175.216 175.552" width="20" height="20" aria-hidden="true">
@@ -725,7 +770,7 @@
               <path fill="#25d366" d="M87.184 25.227c-33.733 0-61.166 27.423-61.178 61.13a60.98 60.98 0 0 0 9.349 32.535l1.455 2.313-6.179 22.558 23.146-6.069 2.235 1.324c9.387 5.571 20.15 8.517 31.126 8.523h.023c33.707 0 61.14-27.426 61.153-61.135a60.75 60.75 0 0 0-17.895-43.251 60.75 60.75 0 0 0-43.235-17.928z"/>
               <path fill="#ffffff" fill-rule="evenodd" d="M68.772 55.603c-1.378-3.061-2.828-3.123-4.137-3.176l-3.524-.043c-1.226 0-3.218.46-4.902 2.3s-6.435 6.287-6.435 15.332 6.588 17.785 7.506 19.013 12.718 20.381 31.405 27.75c15.529 6.124 18.689 4.906 22.061 4.6s10.877-4.447 12.408-8.74 1.532-7.971 1.073-8.74-1.685-1.226-3.525-2.146-10.877-5.367-12.562-5.981-2.91-.919-4.137.921-4.746 5.979-5.819 7.206-2.144 1.381-3.984.462-7.76-2.861-14.784-9.124c-5.465-4.873-9.154-10.891-10.228-12.73s-.114-2.835.808-3.751c.825-.824 1.838-2.147 2.759-3.22s1.224-1.84 1.836-3.065.307-2.301-.153-3.22-4.032-10.011-5.666-13.647"/>
             </svg>
-            📲 Abrir WhatsApp Oficial con Ventas
+            📲 Continuar por WhatsApp Oficial de Ventas
           </a>
         </div>
       `;
@@ -735,13 +780,26 @@
       <div class="wa-bubble">
         ${replyHtml}
         ${actionHTML}
-        <span class="wa-bubble-meta">${getTime()}</span>
+        <span class="wa-bubble-meta">${timeStr || getTime()}</span>
       </div>
     `;
 
     const typing = document.getElementById('camilaTyping');
     if (typing) messages.insertBefore(wrap, typing);
     else messages.appendChild(wrap);
+  }
+
+  function appendUserMessage(text) {
+    const t = getTime();
+    renderUserMessageDirect(text, t);
+    saveMessageToStorage({ type: 'user', text: text, time: t });
+    scrollBottom();
+  }
+
+  function appendBotMessage(replyHtml, whatsappUrl) {
+    const t = getTime();
+    renderBotMessageDirect(replyHtml, whatsappUrl, t);
+    saveMessageToStorage({ type: 'bot', html: replyHtml, whatsappUrl: whatsappUrl, time: t });
     scrollBottom();
   }
 
@@ -765,11 +823,14 @@
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (data.session_id) sessionId = data.session_id;
+      if (data.session_id) {
+        sessionId = data.session_id;
+        try { sessionStorage.setItem(STORAGE_KEY_SID, sessionId); } catch (_) {}
+      }
 
-      // Pausa humana de tipeo para simular escritura real (mínimo 1.7s)
+      // Respuesta ágil sin demoras artificiales
       const elapsed = Date.now() - startTime;
-      const minDelay = 1700;
+      const minDelay = 350;
       if (elapsed < minDelay) {
         await new Promise((resolve) => setTimeout(resolve, minDelay - elapsed));
       }
@@ -780,7 +841,7 @@
     } catch (err) {
       setTyping(false);
       appendBotMessage(
-        '⚠️ Tuve un pequeño problema de conexión acá en el sistema. Puedes escribirme directo al WhatsApp de ventas: <a href="https://wa.me/56944488407" target="_blank" class="wa-link">+56 9 4448 8407</a> y te respondo al tiro.',
+        '⚠️ Tuve un inconveniente de conexión con el sistema. Puede escribirnos directamente a nuestro WhatsApp oficial de ventas: <a href="https://wa.me/56944488407" target="_blank" class="wa-link">+56 9 4448 8407</a> y le responderemos a la brevedad.',
         null
       );
       console.error('Camila Error:', err);
@@ -827,7 +888,6 @@
     if (backBtn) backBtn.addEventListener('click', closeChat);
     if (closeIcon) closeIcon.addEventListener('click', closeChat);
 
-
     // Chips de sugerencia rápida (un toque en celular)
     if (chips) {
       chips.addEventListener('click', (e) => {
@@ -863,6 +923,7 @@
     injectStyles();
     createWidget();
     bindEvents();
+    restoreHistory();
   }
 
   if (document.readyState === 'loading') {
