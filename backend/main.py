@@ -280,14 +280,10 @@ SYSTEM_PROMPT = """Eres Camila, asistente virtual de ventas de Distribuidora Tri
    Revise los datos del sistema adjuntos e informe el precio directo en una línea.
    Si no está disponible: "Ese producto no se encuentra disponible actualmente en nuestro inventario, pero puede consultar alternativas en nuestro catálogo oficial https://pedidos.distribuidoratridente.cl/Public/Catalogo ".
 5. Si preguntan cómo comprar, ser cliente, o piden hablar con un vendedor:
-   Ofrezca de inmediato nuestro WhatsApp de ventas (+56 9 4448 8407) y pídale únicamente su nombre y teléfono:
-   "Para coordinar sus compras o derivarlo con un ejecutivo de ventas, puede escribirnos directamente al WhatsApp oficial +56 9 4448 8407 o bien facilitarme su nombre y teléfono para que lo contactemos a la brevedad."
+   Pídale amablemente su nombre y teléfono para que un ejecutivo lo contacte:
+   "Para coordinar sus compras o derivarlo con un ejecutivo de ventas, por favor facilíteme su nombre y teléfono de contacto para que nuestro equipo lo contacte a la brevedad."
 6. En cuanto el cliente entregue su nombre o teléfono de contacto:
-   "¡Muchas gracias! Ya registré sus datos de contacto. Presione el botón verde de abajo para abrir WhatsApp y nuestro equipo de ventas lo contactará de inmediato."
-   Y al final de su respuesta (en nueva línea) incluya este bloque JSON:
-```json
-{"action":"redirect_whatsapp","nombre":"NOMBRE_CLIENTE","celular":"NUMERO_TELEFONO","razon_social":"","rut":"","direccion":"","correo":""}
-```
+   "¡Muchas gracias! Ya registré sus datos de contacto. Nuestro equipo de ventas se comunicará con usted a la brevedad para coordinar sus compras y pedidos."
 """
 
 # ---------------------------------------------------------------------------

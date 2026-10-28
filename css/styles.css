@@ -923,13 +923,7 @@ img.footer-logo {
    BOTÓN FLOTANTE WHATSAPP CON PULSO Y TOOLTIP
    ========================================================================== */
 .whatsapp-float-container {
-  position: fixed;
-  bottom: 25px;
-  right: 25px;
-  z-index: 1050;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: none !important;
 }
 
 .whatsapp-tooltip {
