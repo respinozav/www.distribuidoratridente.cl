@@ -639,8 +639,9 @@
             </div>
           </div>
 
-          <!-- Chips de consulta rápida (Página 3 y 9 del informe) -->
+          <!-- Chips de consulta rápida -->
           <div class="wa-quick-chips" id="camilaQuickChips">
+            <button type="button" class="wa-chip-btn" data-msg="Quisiera cotizar productos por correo">📋 Cotizar por correo</button>
             <button type="button" class="wa-chip-btn" data-msg="Ver catálogo">📖 Ver catálogo</button>
             <button type="button" class="wa-chip-btn" data-msg="¿Cuál es el pedido mínimo?">📦 Pedido mínimo</button>
             <button type="button" class="wa-chip-btn" data-msg="Quisiera hablar con un vendedor">👤 Hablar con un vendedor</button>
@@ -916,6 +917,46 @@
       });
     }
   }
+
+  // ─── Exportar API Global ──────────────────────────────────────────────────
+  window.Camila = {
+    openChat: function (prefillMessage) {
+      const widget  = document.getElementById('camilaWidget');
+      const chatWin = document.getElementById('camilaChatWindow');
+      const input   = document.getElementById('camilaChatInput');
+      const chips   = document.getElementById('camilaQuickChips');
+
+      isOpen = true;
+      if (widget) widget.classList.add('wa-chat-active');
+      if (chatWin) {
+        chatWin.classList.add('wa-open');
+        chatWin.setAttribute('aria-hidden', 'false');
+      }
+      document.body.classList.add('camila-body-locked');
+      scrollBottom();
+
+      if (prefillMessage) {
+        setTimeout(() => {
+          if (chips) chips.style.display = 'none';
+          appendUserMessage(prefillMessage);
+          sendMessage(prefillMessage);
+        }, 300);
+      } else {
+        setTimeout(() => { if (input) input.focus(); }, 250);
+      }
+    },
+    closeChat: function () {
+      const widget  = document.getElementById('camilaWidget');
+      const chatWin = document.getElementById('camilaChatWindow');
+      isOpen = false;
+      if (widget) widget.classList.remove('wa-chat-active');
+      if (chatWin) {
+        chatWin.classList.remove('wa-open');
+        chatWin.setAttribute('aria-hidden', 'true');
+      }
+      document.body.classList.remove('camila-body-locked');
+    }
+  };
 
   // ─── Iniciar ──────────────────────────────────────────────────────────────
   function init() {

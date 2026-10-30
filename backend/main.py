@@ -23,7 +23,9 @@ import base64
 import datetime
 import psycopg2
 import psycopg2.extras
-from fastapi import FastAPI, HTTPException, Response, Request
+import smtplib
+from email.message import EmailMessage
+from fastapi import FastAPI, HTTPException, Response, Request, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -168,12 +170,257 @@ def get_all_categorias() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Cache en memoria para catálogo de productos y categorías (TTL 5 min)
+# Servicio de Envío de Cotizaciones por Correo Electrónico (SMTP)
 # ---------------------------------------------------------------------------
-_catalog_cache = {
-    "products": [],
-    "last_fetched": 0,
-}
+def get_smtp_config():
+    """Obtiene la configuración de SMTP directamente desde bdtridente.system_settings."""
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, smtp_from_name FROM {DB_SCHEMA}.system_settings LIMIT 1")
+                row = cur.fetchone()
+                if row and row[0] and row[2] and row[3]:
+                    return {
+                        "host": row[0],
+                        "port": row[1] or 465,
+                        "username": row[2],
+                        "password": row[3],
+                        "from_email": row[4] or row[2],
+                        "from_name": row[5] or "Distribuidora Tridente",
+                    }
+    except Exception as exc:
+        log.warning("No se pudo obtener configuración SMTP de BD: %s", exc)
+    return None
+
+def get_admin_recipients():
+    """Obtiene los correos del equipo de ventas/administración que reciben copias de cotizaciones."""
+    recipients = ["pedidos.tridente2026@gmail.com"]
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT correo FROM {DB_SCHEMA}.usuarios WHERE recibe_pedido = true")
+                rows = cur.fetchall()
+                for r in rows:
+                    if r[0] and r[0] not in recipients:
+                        recipients.append(r[0])
+    except Exception as exc:
+        log.warning("No se pudo obtener destinatarios administradores de BD: %s", exc)
+    return recipients
+
+def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio: str) -> str:
+    """Genera una plantilla HTML elegante para la cotización enviada por Camila."""
+    nombre = cliente_data.get("nombre") or "Estimado/a Cliente"
+    telefono = cliente_data.get("telefono") or "No indicado"
+    direccion = cliente_data.get("direccion") or "Región de Coquimbo"
+    correo = cliente_data.get("correo") or ""
+    fecha_hoy = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    filas_html = ""
+    subtotal_neto = 0
+
+    if productos_lista:
+        for idx, item in enumerate(productos_lista, 1):
+            p_nombre = item.get("nombre", "Producto")
+            p_cant = item.get("cantidad", 1)
+            p_precio = item.get("precio_unitario", 0)
+            p_sub = p_cant * p_precio
+            subtotal_neto += p_sub
+            filas_html += f"""
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px 12px; font-size: 14px; color: #1e293b;">{idx}</td>
+                <td style="padding: 10px 12px; font-size: 14px; font-weight: 600; color: #0f172a;">{p_nombre}</td>
+                <td style="padding: 10px 12px; font-size: 14px; text-align: center; color: #334155;">{p_cant}</td>
+                <td style="padding: 10px 12px; font-size: 14px; text-align: right; color: #334155;">${p_precio:,.0f}</td>
+                <td style="padding: 10px 12px; font-size: 14px; text-align: right; font-weight: 700; color: #0369a1;">${p_sub:,.0f}</td>
+            </tr>
+            """.replace(",", ".")
+    else:
+        filas_html = """
+        <tr>
+            <td colspan="5" style="padding: 16px; text-align: center; color: #64748b; font-size: 14px;">
+                Cotización general con lista de precios y catálogo mayorista adjunto.
+            </td>
+        </tr>
+        """
+
+    iva = int(round(subtotal_neto * 0.19))
+    total = subtotal_neto + iva
+
+    totales_box = ""
+    if subtotal_neto > 0:
+        totales_box = f"""
+        <table style="width: 100%; max-width: 320px; margin-left: auto; margin-top: 16px; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 6px 10px; color: #64748b; font-size: 14px;">Subtotal Neto:</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-size: 14px;">${subtotal_neto:,.0f}</td>
+            </tr>
+            <tr>
+                <td style="padding: 6px 10px; color: #64748b; font-size: 14px;">IVA (19%):</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-size: 14px;">${iva:,.0f}</td>
+            </tr>
+            <tr style="border-top: 2px solid #0284c7; background: #f0f9ff;">
+                <td style="padding: 8px 10px; font-weight: 700; font-size: 16px; color: #0c4a6e;">TOTAL:</td>
+                <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-size: 18px; color: #0284c7;">${total:,.0f}</td>
+            </tr>
+        </table>
+        """.replace(",", ".")
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px;">
+      <div style="max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #091e3a 0%, #0284c7 100%); padding: 24px 28px; color: #ffffff;">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">Distribuidora Tridente</h1>
+          <p style="margin: 4px 0 0; font-size: 14px; opacity: 0.9;">Cotización Mayorista Oficial • Emitida por Camila</p>
+        </div>
+
+        <!-- Info Folio -->
+        <div style="padding: 24px 28px 16px; background: #fafafa; border-bottom: 1px solid #e2e8f0;">
+          <table style="width: 100%;">
+            <tr>
+              <td>
+                <span style="font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: 700;">Folio Cotización</span><br>
+                <strong style="font-size: 18px; color: #0f172a;">{folio}</strong>
+              </td>
+              <td style="text-align: right;">
+                <span style="font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: 700;">Fecha de Emisión</span><br>
+                <span style="font-size: 14px; color: #334155;">{fecha_hoy}</span>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Datos Cliente -->
+        <div style="padding: 20px 28px;">
+          <h3 style="margin: 0 0 12px; font-size: 15px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Datos del Solicitante</h3>
+          <table style="width: 100%; font-size: 14px; color: #334155;">
+            <tr><td style="padding: 4px 0; width: 140px; color: #64748b;">Razón Social / Nombre:</td><td style="font-weight: 600; color: #0f172a;">{nombre}</td></tr>
+            <tr><td style="padding: 4px 0; color: #64748b;">Correo Electrónico:</td><td><a href="mailto:{correo}" style="color: #0284c7;">{correo}</a></td></tr>
+            <tr><td style="padding: 4px 0; color: #64748b;">Teléfono / Celular:</td><td>{telefono}</td></tr>
+            <tr><td style="padding: 4px 0; color: #64748b;">Dirección / Sector:</td><td>{direccion}</td></tr>
+          </table>
+        </div>
+
+        <!-- Tabla Productos -->
+        <div style="padding: 10px 28px 24px;">
+          <h3 style="margin: 0 0 12px; font-size: 15px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Detalle de Productos Cotizados</h3>
+          <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+              <tr style="background: #f8fafc; border-bottom: 2px solid #cbd5e1;">
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">#</th>
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">Producto</th>
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; text-align: center;">Cant.</th>
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; text-align: right;">Precio Unit.</th>
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; text-align: right;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas_html}
+            </tbody>
+          </table>
+
+          {totales_box}
+        </div>
+
+        <!-- Banner Condiciones -->
+        <div style="padding: 16px 28px; background: #e0f2fe; border-left: 4px solid #0284c7; margin: 0 28px 20px; border-radius: 4px;">
+          <p style="margin: 0; font-size: 13px; color: #0369a1; line-height: 1.5;">
+            <strong>📌 Condiciones Comerciales y Despacho:</strong><br>
+            • Validez de esta cotización: <strong>72 horas</strong> a partir de su emisión.<br>
+            • Pedido mínimo para despacho gratuito en ruta: <strong>$150.000 netos</strong> (+ IVA).<br>
+            • Para coordinar despacho o activar su pedido, responda a este correo o comuníquese con su vendedor asignado.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding: 20px 28px; background: #091e3a; color: #94a3b8; text-align: center; font-size: 12px;">
+          <p style="margin: 0 0 6px; color: #e2e8f0; font-weight: 600;">Distribuidora Tridente — Venta Mayorista Exclusiva para Comerciantes</p>
+          <p style="margin: 0 0 8px;">Región de Coquimbo • Catálogo online: <a href="https://pedidos.distribuidoratridente.cl/Public/Catalogo" style="color: #38bdf8;">pedidos.distribuidoratridente.cl</a></p>
+          <p style="margin: 0; font-size: 11px; opacity: 0.8;">Atención generada automáticamente por Camila, asistente de ventas de Distribuidora Tridente.</p>
+        </div>
+
+      </div>
+    </body>
+    </html>
+    """
+    return html
+
+def send_cotizacion_email_background(cliente_data: dict, productos_lista: list):
+    """Tarea asíncrona para generar el folio, guardar en BD y enviar el correo con copia a ventas."""
+    smtp_cfg = get_smtp_config()
+    if not smtp_cfg:
+        log.error("No hay servidor SMTP configurado para enviar la cotización.")
+        return
+
+    destinatario = (cliente_data.get("correo") or "").strip()
+    if not destinatario or "@" not in destinatario:
+        log.warning("Correo de cliente inválido: '%s'", destinatario)
+        return
+
+    # Generar folio único C-XXXXXX
+    folio = f"C-{int(time.time()) % 1000000:06d}"
+    
+    # Calcular totales
+    subtotal_neto = sum(p.get("cantidad", 1) * p.get("precio_unitario", 0) for p in productos_lista)
+    iva = int(round(subtotal_neto * 0.19))
+    total = subtotal_neto + iva
+
+    # Guardar en Base de Datos
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    INSERT INTO {DB_SCHEMA}.cotizaciones_clientes (
+                        folio, cliente_razon_social, cliente_rut, cliente_telefono, cliente_correo,
+                        cliente_direccion, cliente_observaciones, fecha_vencimiento, subtotal_neto,
+                        iva, total, total_items, productos, estado
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, NOW() + INTERVAL '72 hours', %s, %s, %s, %s, %s, 'emitida_camila'
+                    ) ON CONFLICT (folio) DO NOTHING RETURNING id;
+                """, (
+                    folio,
+                    cliente_data.get("nombre") or "Cliente Web",
+                    cliente_data.get("rut") or "S/R",
+                    cliente_data.get("telefono") or "",
+                    destinatario,
+                    cliente_data.get("direccion") or "",
+                    f"Generada por Camila IA a través del chat web. Solicitud: {cliente_data.get('productos_solicitados', '')}",
+                    subtotal_neto,
+                    iva,
+                    total,
+                    len(productos_lista),
+                    json.dumps(productos_lista, ensure_ascii=False)
+                ))
+            conn.commit()
+            log.info("✓ Cotización %s guardada en BD para %s", folio, destinatario)
+    except Exception as exc:
+        log.warning("No se pudo guardar la cotización en BD: %s", exc)
+
+    # Preparar el correo
+    html_content = build_cotizacion_email_html(cliente_data, productos_lista, folio)
+    admin_recipients = get_admin_recipients()
+
+    msg = EmailMessage()
+    msg["Subject"] = f"Cotización Oficial #{folio} — Distribuidora Tridente"
+    msg["From"] = f"{smtp_cfg['from_name']} <{smtp_cfg['from_email']}>"
+    msg["To"] = destinatario
+    if admin_recipients:
+        msg["Bcc"] = ", ".join(admin_recipients)
+    msg.add_alternative(html_content, subtype="html")
+
+    # Enviar correo vía SMTP SSL
+    try:
+        with smtplib.SMTP_SSL(smtp_cfg["host"], smtp_cfg["port"], timeout=20) as server:
+            server.login(smtp_cfg["username"], smtp_cfg["password"])
+            server.send_message(msg)
+        log.info("📧 Cotización %s enviada con éxito a %s (Bcc: %s)", folio, destinatario, admin_recipients)
+    except Exception as exc:
+        log.error("Error al enviar cotización por SMTP a %s: %s", destinatario, exc)
+
 
 def get_all_catalog_products() -> list[dict]:
     """Retorna el listado completo de productos activos para el cotizador web público."""
@@ -242,22 +489,44 @@ def extract_search_terms(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # System Prompt de Camila
 # ---------------------------------------------------------------------------
-SYSTEM_PROMPT = """Eres Camila, la asistente virtual experta en ventas de Distribuidora Tridente, distribuidora mayorista en la Región de Coquimbo, Chile. Tu objetivo es orientar a los clientes, mostrar el catálogo y ayudarles a armar sus pedidos.
+SYSTEM_PROMPT = """Eres Camila, la asistente virtual experta en ventas de Distribuidora Tridente, distribuidora mayorista en la Región de Coquimbo, Chile. Tu objetivo es orientar a los clientes, mostrar el catálogo y ayudarles a armar sus cotizaciones oficiales enviadas por correo electrónico.
 
 ## REGLAS ESTRICTAS Y OBLIGATORIAS (CUMPLIMIENTO ABSOLUTO)
 1. NUNCA, bajo ninguna circunstancia, menciones, reveles ni calcules precios de productos directamente en el chat.
-2. Si un cliente pregunta por un precio, solicita una cotización o quiere finalizar su pedido, infórmale amablemente que, por políticas de venta mayorista, las cotizaciones valorizadas se envían exclusivamente por correo electrónico.
-3. Inmediatamente después, pídele su dirección de correo electrónico para enviarle el documento. Ejemplo: "Para entregarle los precios exactos de su pedido, ¿me podría indicar a qué correo electrónico le envío la cotización formal?".
-4. Una vez que el cliente te proporcione su correo y los productos que desea, confirma la recepción de los datos. Dile: "¡Perfecto! Ya he procesado su solicitud. En los próximos minutos recibirá la cotización en su bandeja de entrada."
-5. Si el cliente insiste en saber el precio por el chat, discúlpate cordialmente y reitera que tu sistema solo tiene habilitado el envío de valores a través del documento por correo.
+2. Si un cliente pregunta por un precio, solicita una cotización o quiere cotizar productos, infórmale amablemente que, por políticas de venta mayorista, las cotizaciones formales valorizadas se envían directamente a su correo electrónico.
+3. Solicita siempre el correo electrónico del cliente para enviarle su cotización oficial. Si el cliente menciona productos o cantidades, anótalos para su cotización.
+4. Cuando el cliente te proporcione su correo electrónico (y si mencionó productos o interés en cotizar):
+   - Confírmale amablemente que su cotización formal ha sido procesada y que le llegará a su bandeja de entrada en los próximos minutos.
+   - En ese mismo mensaje, DEBES generar al final un bloque JSON con la acción "emit_cotizacion" con los datos recopilados:
+   ```json
+   {
+     "action": "emit_cotizacion",
+     "correo": "correo_del_cliente@ejemplo.com",
+     "nombre": "Nombre del cliente o negocio si lo dio, sino vacio",
+     "telefono": "Telefono si lo dio, sino vacio",
+     "direccion": "Direccion o ciudad si la dio, sino vacio",
+     "productos_solicitados": "Lista o descripcion de productos consultados por el cliente"
+   }
+   ```
+5. Si el cliente solo desea registrarse como cliente o hablar con un vendedor, o si solicita contacto por WhatsApp habiendo entregado datos:
+   ```json
+   {
+     "action": "redirect_whatsapp",
+     "razon_social": "Nombre o negocio",
+     "correo": "correo@ejemplo.com",
+     "celular": "numero si lo dio",
+     "direccion": "ciudad si la dio"
+   }
+   ```
+6. Si el cliente insiste en saber el precio por el chat, discúlpate cordialmente y reitera que tu sistema solo tiene habilitado el despacho de valores oficiales a través de la cotización formal por correo.
 
 ## IDENTIDAD Y TRATO (REGLA FUNDAMENTAL)
-- Te presentas como Camila, asistente virtual de ventas de Distribuidora Tridente.
+- Te presentas como Camila, asistente de ventas de Distribuidora Tridente.
 - TRATO DE USTED FORMAL Y CORDIAL: Trate siempre al cliente de "usted" ("le puedo orientar", "su negocio", "su pedido", "en qué le ayudo").
 - PROHIBIDO TUTEAR: Nunca use "tú", "te", "puedes", "tienes", "tu negocio".
-- PROHIBIDO USAR MODISMOS VULGARES O CALLEJEROS: NUNCA use "cómo tai", "po", "pa'", "te cacho", "bacán", "al toquecito". Use español formal, cordial y claro.
-- MODERACIÓN EN EMOJIS: Máximo 1 emoji discreto por respuesta o ninguno. No sature los mensajes de emojis.
-- RESPUESTAS CONCISAS: Respuestas breves (1 a 3 frases máximo), claras, directas y al grano.
+- PROHIBIDO USAR MODISMOS VULGARES: NUNCA use "cómo tai", "po", "pa'", "te cacho", "bacán". Use español formal, cordial y claro.
+- MODERACIÓN EN EMOJIS: Máximo 1 emoji discreto por respuesta o ninguno.
+- RESPUESTAS CONCISAS: Respuestas breves (1 a 3 frases máximo), claras y directas.
 
 ## Sobre Distribuidora Tridente
 - Distribuidora mayorista en la Región de Coquimbo.
@@ -271,18 +540,17 @@ SYSTEM_PROMPT = """Eres Camila, la asistente virtual experta en ventas de Distri
 - Ovalle y Provincia del Limarí: Martes y jueves.
 - Valle de Elqui (Vicuña, Paihuano y alrededores): Miércoles.
 - Provincia de Choapa (Salamanca, Illapel, Canela y Los Vilos): Viernes (rutas semanales directas).
-- Si le preguntan por días de entrega o despacho, informe claramente los días de la ruta consultada.
 
 ## REGLAS DE CONVERSACIÓN
 1. Si solo saludan ("hola", "buenas tardes", "buenos días"):
-   "¡Hola! Buenas tardes, soy Camila, asistente virtual de Distribuidora Tridente. ¿En qué le puedo orientar hoy?"
+   "¡Hola! Buenas tardes, soy Camila, asistente de ventas de Distribuidora Tridente. ¿En qué le puedo orientar hoy?"
 2. Enlaces limpios y no repetitivos:
    - NUNCA pegue un punto ni signo de puntuación al final de una URL.
    - Comparta el catálogo (https://pedidos.distribuidoratridente.cl/Public/Catalogo ) únicamente cuando el cliente consulte por productos o variedad disponible.
 3. Si preguntan si tienen stock o disponibilidad de productos:
-   Confirme la disponibilidad del producto y pregunte qué cantidad necesita para incluirlo en su cotización formal por correo.
-4. Si preguntan cómo comprar, ser cliente o hablar con un vendedor:
-   "Para coordinar sus compras o habilitar su cuenta comercial, por favor facilíteme su nombre y correo electrónico para enviarle el catálogo y la cotización formal."
+   Confirme la disponibilidad del producto y pregunte qué cantidad necesita y a qué correo electrónico le envía la cotización formal valorizada.
+4. Si preguntan cómo comprar, ser cliente o armar cotización:
+   "Con gusto le preparamos su cotización oficial. Por favor facilíteme su correo electrónico (y si gusta su nombre o local) para enviarle los valores detallados a su bandeja."
 """
 
 # ---------------------------------------------------------------------------
@@ -459,7 +727,7 @@ def new_session():
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     sid = req.session_id or str(uuid.uuid4())
     if sid not in sessions:
         sessions[sid] = []
@@ -489,14 +757,8 @@ def chat(req: ChatRequest):
         for phrase in ["que productos", "qué productos", "que vendes", "qué vendes", "que tienes", "qué tienes", "categorias", "categorías"]
     )
 
-    if is_price_or_cotizar_q and not terms:
-        db_context = "\n\n[POLÍTICA DE PRECIOS: Recuerda la regla estricta: las cotizaciones valorizadas se envían exclusivamente por correo electrónico. Pide amablemente el correo para enviarle el documento con los precios exactos]."
-    elif is_general_products_q:
-        categorias = get_all_categorias()
-        db_context = f"\n\n[DATOS DE BASE DE DATOS: Categorías activas de la distribuidora: {', '.join(categorias)}. Catálogo completo en https://pedidos.distribuidoratridente.cl/Public/Catalogo . NUNCA des precios en el chat; ofrece enviar la cotización por correo]."
-    elif terms:
-        # Buscar productos usando los términos extraídos
-        found_products = []
+    found_products = []
+    if terms:
         seen_codes = set()
         for term in terms[:3]:
             rows = query_productos(term, limit=6)
@@ -506,11 +768,17 @@ def chat(req: ChatRequest):
                     seen_codes.add(code)
                     found_products.append(r)
 
+    if is_price_or_cotizar_q and not terms:
+        db_context = "\n\n[POLÍTICA DE PRECIOS: Recuerda la regla estricta: las cotizaciones valorizadas se envían exclusivamente por correo electrónico. Pide amablemente el correo para enviarle el documento oficial con los valores exactos]."
+    elif is_general_products_q:
+        categorias = get_all_categorias()
+        db_context = f"\n\n[DATOS DE BASE DE DATOS: Categorías activas de la distribuidora: {', '.join(categorias)}. Catálogo completo en https://pedidos.distribuidoratridente.cl/Public/Catalogo . NUNCA des precios en el chat; ofrece enviar la cotización por correo]."
+    elif terms:
         if found_products:
             db_context = (
                 f"\n\n[DATOS DE BASE DE DATOS (tabla {DB_SCHEMA}.productos)]:\n"
                 + json.dumps(found_products[:12], ensure_ascii=False, default=str)
-                + "\n(REGLA ESTRICTA: Confirma disponibilidad del producto pero NUNCA reveles ni calcules precios en el chat. Solicita el correo del cliente para enviar la cotización formal con los valores exactos)."
+                + "\n(REGLA ESTRICTA: Confirma disponibilidad del producto pero NUNCA reveles ni calcules precios en el chat. Solicita el correo del cliente para enviarle la cotización formal con los valores exactos)."
             )
         else:
             db_context = f"\n\n[DATOS DE BASE DE DATOS: No se encontraron productos coincidentes para: '{', '.join(terms)}'. Sugiere revisar el catálogo oficial https://pedidos.distribuidoratridente.cl/Public/Catalogo ]"
@@ -541,12 +809,41 @@ def chat(req: ChatRequest):
     if len(sessions[sid]) > 40:
         sessions[sid] = sessions[sid][-30:]
 
-    # ── Detectar acción redirect_whatsapp en la respuesta ──
+    # ── Detectar acciones emit_cotizacion o redirect_whatsapp en la respuesta ──
     whatsapp_url: Optional[str] = None
     reply_clean = assistant_text
 
+    # 1. Acción: emit_cotizacion (Cotización por correo enviada por Camila)
     try:
-        json_match = re.search(r'\{[^{}]*"action"\s*:\s*"redirect_whatsapp"[^{}]*\}', assistant_text, re.DOTALL)
+        cotiz_match = re.search(r'\{[^{}]*"action"\s*:\s*"emit_cotizacion"[^{}]*\}', assistant_text, re.DOTALL)
+        if cotiz_match:
+            json_str = cotiz_match.group(0)
+            action_data = json.loads(json_str)
+            correo_cliente = str(action_data.get("correo") or "").strip()
+            if correo_cliente and "@" in correo_cliente:
+                # Recopilar productos relevantes para la cotización
+                prods_cotizados = []
+                for p in found_products[:8]:
+                    prods_cotizados.append({
+                        "id": str(p.get("id") or ""),
+                        "codigo": p.get("codigo", "S/C"),
+                        "nombre": p.get("nombre", "Producto"),
+                        "precio_unitario": float(p.get("precio_unitario") or 0),
+                        "cantidad": 1,
+                    })
+
+                background_tasks.add_task(send_cotizacion_email_background, action_data, prods_cotizados)
+                log.info("Tarea de envío de cotización por correo agendada para: %s", correo_cliente)
+
+            reply_clean = reply_clean.replace(json_str, "")
+            reply_clean = re.sub(r"```json\s*", "", reply_clean)
+            reply_clean = re.sub(r"```\s*", "", reply_clean).strip()
+    except Exception as exc:
+        log.warning("No se pudo procesar acción emit_cotizacion: %s", exc)
+
+    # 2. Acción: redirect_whatsapp
+    try:
+        json_match = re.search(r'\{[^{}]*"action"\s*:\s*"redirect_whatsapp"[^{}]*\}', reply_clean, re.DOTALL)
         if json_match:
             json_str = json_match.group(0)
             action_data = json.loads(json_str)
@@ -581,7 +878,7 @@ def chat(req: ChatRequest):
 
             wa_text = urllib.parse.quote("\n".join(lineas))
             whatsapp_url = f"https://wa.me/{WHATSAPP_NUMBER}?text={wa_text}"
-            reply_clean = assistant_text.replace(json_str, "")
+            reply_clean = reply_clean.replace(json_str, "")
             reply_clean = re.sub(r"```json\s*", "", reply_clean)
             reply_clean = re.sub(r"```\s*", "", reply_clean).strip()
     except Exception as exc:
