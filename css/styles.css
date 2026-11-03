@@ -120,23 +120,28 @@ body {
 }
 
 .header .container {
-  max-width: 1320px;
+  max-width: 1440px;
 }
 
 .nav {
   display: flex;
   align-items: center;
-  gap: 1.15rem;
+  gap: 0.95rem;
+  flex-wrap: nowrap;
 }
 
 .nav a {
   color: #e2e8f0;
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   position: relative;
-  padding: 0.4rem 0.2rem;
+  padding: 0.45rem 0.25rem;
   transition: color var(--transition-fast);
+  white-space: nowrap !important;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.1;
 }
 
 .nav a::after {
@@ -161,13 +166,19 @@ body {
 
 .nav a.nav-highlight {
   background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: #ffffff;
-  padding: 0.55rem 1.25rem;
+  color: #ffffff !important;
+  padding: 0.5rem 1.15rem;
   border-radius: var(--radius-full);
   font-weight: 700;
+  font-size: 0.88rem;
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
   transition: all var(--transition-fast);
-  white-space: nowrap;
+  white-space: nowrap !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+  text-decoration: none;
 }
 
 .nav a.nav-highlight::after {
@@ -177,22 +188,26 @@ body {
 .nav a.nav-highlight:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(245, 158, 11, 0.45);
+  color: #ffffff !important;
 }
 
 .nav a.nav-hazte-cliente {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #ffffff !important;
-  padding: 0.55rem 1.25rem;
+  padding: 0.5rem 1.15rem;
   border-radius: var(--radius-full);
   font-weight: 700;
+  font-size: 0.88rem;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
   transition: all var(--transition-fast);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
   text-decoration: none;
-  white-space: nowrap;
+  white-space: nowrap !important;
+  line-height: 1.1;
 }
 
 .nav a.nav-hazte-cliente::after {
@@ -209,15 +224,21 @@ body {
 .nav a.nav-ofertas {
   background: linear-gradient(135deg, #ef4444 0%, #ea580c 50%, #f59e0b 100%);
   color: #ffffff !important;
-  padding: 0.45rem 1.05rem;
+  padding: 0.42rem 0.95rem;
   border-radius: var(--radius-full);
   font-weight: 800;
+  font-size: 0.88rem;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   box-shadow: 0 0 16px rgba(239, 68, 68, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.3);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap !important;
+  line-height: 1.1;
+}
   letter-spacing: 0.01em;
   text-decoration: none;
 }
@@ -1026,25 +1047,48 @@ img.footer-logo {
 /* ==========================================================================
    RESPONSIVE DESIGN (MEDIA QUERIES)
    ========================================================================== */
-@media (min-width: 769px) and (max-width: 1250px) {
+@media (min-width: 769px) and (max-width: 1380px) {
   .header-content {
     padding: 0.65rem 0;
   }
   .nav {
-    gap: 0.65rem;
+    gap: 0.6rem;
+    flex-wrap: nowrap;
   }
   .nav a {
-    font-size: 0.85rem;
-    padding: 0.3rem 0.15rem;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.15rem;
+    white-space: nowrap !important;
   }
   .nav a.nav-highlight,
   .nav a.nav-hazte-cliente {
-    padding: 0.42rem 0.85rem;
-    font-size: 0.82rem;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.8rem;
+    white-space: nowrap !important;
   }
   .nav a.nav-ofertas {
-    padding: 0.38rem 0.75rem;
-    font-size: 0.82rem;
+    padding: 0.38rem 0.7rem;
+    font-size: 0.8rem;
+    white-space: nowrap !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1120px) {
+  .nav {
+    gap: 0.35rem;
+  }
+  .nav a {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.1rem;
+  }
+  .nav a.nav-highlight,
+  .nav a.nav-hazte-cliente {
+    padding: 0.38rem 0.65rem;
+    font-size: 0.74rem;
+  }
+  .nav a.nav-ofertas {
+    padding: 0.32rem 0.55rem;
+    font-size: 0.74rem;
   }
 }
 
@@ -1089,17 +1133,17 @@ img.footer-logo {
     padding: 0.6rem 0;
   }
 
-  .nav a.nav-hazte-cliente {
+  .nav a.nav-highlight {
     margin-top: 0.5rem;
     width: 100%;
     text-align: center;
-    justify-content: center;
   }
 
-  .nav a.nav-highlight {
-    margin-top: 0.25rem;
+  .nav a.nav-hazte-cliente {
+    margin-top: 0.35rem;
     width: 100%;
     text-align: center;
+    justify-content: center;
   }
 
   .nav a.nav-ofertas {
