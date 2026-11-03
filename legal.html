@@ -61,6 +61,7 @@
         <a href="javascript:void(0)" onclick="window.Camila ? window.Camila.openChat('Hola Camila, quisiera armar una cotización por correo.') : document.getElementById('camilaBtn').click();" class="nav-cotizar" style="color: #38bdf8; font-weight: 700;">📋 Cotizar con Camila</a>
         <a href="https://pedidos.distribuidoratridente.cl/Public/Catalogo" target="_blank" rel="noopener">Catálogo</a>
         <a href="legal.html" style="color: #ffffff; font-weight: 700;">Legal</a>
+        <a href="javascript:void(0)" onclick="window.abrirModalHazteCliente ? window.abrirModalHazteCliente() : null" class="nav-hazte-cliente" role="button" aria-haspopup="dialog" id="navBtnHazteCliente">Hazte Cliente</a>
         <a href="https://pedidos.distribuidoratridente.cl" target="_blank" rel="noopener" class="nav-highlight">Portal de Pedidos</a>
       </nav>
     </div>
@@ -126,6 +127,7 @@
           <ul class="footer-links">
             <li><a href="index.html">Inicio</a></li>
             <li><a href="https://pedidos.distribuidoratridente.cl/Public/Catalogo" target="_blank" rel="noopener">Catálogo Digital</a></li>
+            <li><a href="javascript:void(0)" onclick="window.abrirModalHazteCliente ? window.abrirModalHazteCliente() : null">Hazte Cliente Mayorista</a></li>
             <li><a href="https://pedidos.distribuidoratridente.cl" target="_blank" rel="noopener">Portal de Pedidos</a></li>
             <li><a href="legal.html">Información Legal</a></li>
           </ul>
@@ -162,6 +164,8 @@
 
   <!-- Camila AI Widget — Agente IA conectado al backend Gemini (puerto 8015) -->
   <script src="js/camila-widget.js" defer></script>
+  <!-- Hazte Cliente — Modal de Registro Rápido y Derivación a WhatsApp -->
+  <script src="js/hazte-cliente.js" defer></script>
 
 </body>
 </html>
