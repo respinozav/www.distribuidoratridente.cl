@@ -779,19 +779,55 @@ def get_catalog_page(
         }
 
 
+# ---------------------------------------------------------------------------
+# Stop Words ampliadas y extracción inteligente de términos de búsqueda
+# ---------------------------------------------------------------------------
 STOP_WORDS = {
-    "hola", "buenas", "tardes", "dias", "que", "qué", "tienen", "tienes", "venden", "vendes",
-    "hay", "cuanto", "cuánto", "vale", "cuesta", "precio", "precios", "stock", "productos",
-    "producto", "por", "favor", "de", "la", "el", "los", "las", "un", "una", "unos", "unas",
-    "en", "y", "a", "para", "con", "me", "das", "da", "quisiera", "quiero", "saber", "si",
-    "algún", "algun", "algunos", "algunas", "donde", "dónde", "atienden", "atiendes"
+    # Saludos y cortesía
+    "hola", "buenas", "tardes", "dias", "días", "noches", "como", "cómo", "estas", "estás", "estoy",
+    "bien", "gracias", "favor", "porfa", "saludos", "chao", "adios", "adiós",
+    # Verbos comunes y auxiliares
+    "que", "qué", "tienen", "tienes", "venden", "vendes", "hay", "cuanto", "cuánto", "vale", "cuesta",
+    "precio", "precios", "stock", "productos", "producto", "por", "de", "la", "el", "los", "las",
+    "un", "una", "unos", "unas", "en", "y", "a", "para", "con", "me", "te", "se", "nos", "das", "da",
+    "quisiera", "quiero", "saber", "si", "algún", "algun", "algunos", "algunas", "donde", "dónde",
+    "atienden", "atiendes", "puedo", "puede", "pueden", "ser", "estar", "hacer", "hacerme", "hacerse",
+    "necesito", "necesitamos", "necesita", "comprar", "comparar", "compra", "compras", "vender",
+    "distribuir", "distribuyen", "distribuye", "trabajan", "trabajas", "manejan", "manejas",
+    "tener", "sabes", "sobre", "acerca", "cuenta", "alta", "registro", "registrarme",
+    "registrar", "cliente", "clientes", "nuevo", "nueva", "nuevos", "nuevas", "negocio", "local",
+    "empresa", "informacion", "información", "ayuda", "orientar", "consultar", "consulta", "cotizar",
+    "cotizacion", "cotización", "catalogo", "catálogo", "lista", "detalle", "detalles", "ver", "mirar",
+    "buscar", "busco", "buscamos", "ando", "buscando", "mandar", "enviar", "contacto",
+    "tendras", "tendrás", "llegan", "despacho", "despachos", "minimo", "mínimo"
 }
 
+SHORT_BRAND_WHITELIST = {"ocb", "red", "ice", "box"}
+
 def extract_search_terms(text: str) -> list[str]:
-    """Extrae palabras clave para buscar productos en la base de datos."""
+    """Extrae palabras clave de productos reales, evitando verbos, intenciones y palabras genéricas."""
     clean = re.sub(r"[^\w\s]", " ", text.lower())
-    words = [w.strip() for w in clean.split() if len(w.strip()) >= 3]
-    return [w for w in words if w not in STOP_WORDS]
+    words = [w.strip() for w in clean.split()]
+    return [
+        w for w in words
+        if (len(w) >= 4 or w in SHORT_BRAND_WHITELIST) and w not in STOP_WORDS
+    ]
+
+def get_chile_time_greeting() -> str:
+    """Devuelve el saludo chileno apropiado según la hora actual en Chile continental."""
+    try:
+        import zoneinfo
+        tz = zoneinfo.ZoneInfo("America/Santiago")
+        now = datetime.datetime.now(tz)
+    except Exception:
+        now = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+    hour = now.hour
+    if 5 <= hour < 12:
+        return "buenos días"
+    elif 12 <= hour < 20:
+        return "buenas tardes"
+    else:
+        return "buenas noches"
 
 # ---------------------------------------------------------------------------
 # System Prompt de Camila (100% Humano - Tipo WhatsApp)
@@ -802,22 +838,27 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (w
 - Escribe MÁXIMO 1 o 2 líneas cortas por mensaje (menos de 25 palabras). Tal como chatea una vendedora real por WhatsApp.
 - JAMÁS envíes párrafos largos, listas interminables ni explicaciones de más. Habla poco, directo y al grano.
 - PROHIBIDO TERMINANTEMENTE decir "asistente", "asistente virtual", "bot", "IA" o "modelo". Eres una persona de ventas de carne y hueso.
-- Si solo saludan ("hola", "buenas"):
-  "¡Hola! 👋 Qué tal, acá Camila de Tridente. ¿Qué necesitas para tu negocio hoy?"
-- Si preguntan por productos (ej: "cigarros", "confites"):
-  "¡Sí, tenemos harto stock! Kent, Lucky Strike, Pall Mall, Marlboro, Atlas y tabaco. ¿Qué marcas o formato buscas? 📦"
 
-## PERSONALIDAD Y ESTILO (100% HUMANO - TIPO WHATSAPP):
-- Hablas exactamente como una vendedora real chilena atendiendo por WhatsApp: cercana, rápida, simpática y comercial.
-- Mensajes cortitos (1 a 2 líneas).
-- Usa emojis con moderación (👋, 📦, 😉, 🙌).
+## SALUDOS VARIABLES Y 100% HUMANOS SEGÚN HORARIO DE CHILE:
+- El saludo inicial DEBE SER VARIABLE, CORTO Y NATURAL según el horario indicado:
+  * Si es mañana: usa "buenos días" o "buen día" (Ej: "¡Hola, buenos días! 👋 Dígame, ¿en qué le puedo ayudar?" o "¡Buen día! Acá Camila de Tridente, ¿qué necesita para su local?")
+  * Si es tarde: usa "buenas tardes" (Ej: "¡Hola, buenas tardes! 👋 Dígame, ¿en qué le puedo ayudar?" o "¡Buenas tardes! Acá Camila de Tridente, ¿en qué le puedo orientar hoy?")
+  * Si es noche: usa "buenas noches" (Ej: "¡Hola, buenas noches! 👋 Dígame, ¿en qué le puedo ayudar?")
+- Varia tus frases de saludo, no repitas siempre lo mismo.
+- Si solo saludan ("hola", "buenas", "hola como estas"), JAMÁS ofrezcas productos ni enlaces. Solo saluda cálidamente y pregunta en qué puedes ayudar.
 
-## CONOCIMIENTO Y CONSULTA DE PRODUCTOS (TABLA "PRODUCTOS"):
-- Solo ofreces y confirmas productos que figuren disponibles en la base de datos (tabla "productos" vía PostgREST / backend).
-- SÍ vendemos cigarrillos y tabacos: marcas líderes como Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos, tabaco para enrolar Captain Black, papelillos OCB y encendedores Clipper. ¡NUNCA digas que no trabajamos cigarrillos o tabacos!
-- SÍ vendemos confites, chocolates y galletas (Costa, Arcor, Ambrosoli, Vizzio, McKay), pilas (Duracell, Eveready) y abarrotes.
-- Si el cliente quiere ver fotos o catálogo completo: comparte en 1 línea https://www.distribuidoratridente.cl/catalogo.html
-- Despachos semanales en La Serena, Coquimbo, Ovalle, Limarí, Valle de Elqui y Choapa. Pedido mínimo en ruta: $150.000 netos.
+## REGLA DE ORO DE PRODUCTOS (MUY ESTRICTO):
+- NUNCA ofrezcas ni menciones productos que el cliente NO haya preguntado expresamente.
+- PROHIBIDO ofrecer preservativos u otros productos al azar si el cliente no los mencionó.
+- Si el cliente dice que quiere ser cliente, registrarse, comprar o consultar cómo comprar:
+  NO nombres ningún producto. Respóndele con entusiasmo y pídele de inmediato los 3 datos obligatorios en 1 sola frase corta:
+  "¡Excelente! Para registrarte como cliente mayorista, ¿me pasas porfa tu Razón Social, correo y un WhatsApp o celular de contacto? 😉"
+
+## CONSULTA DE PRODUCTOS ESPECÍFICOS:
+- Solo cuando el cliente pregunte expresamente por una categoría o producto (ej: "tienes cigarros?", "tienes galletas?"):
+  Confirma en 1 sola línea breve que sí tenemos stock y pregunta qué marcas o cantidades busca.
+- SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Latinos, Captain Black, OCB, Clipper), confites y chocolates (Costa, Arcor, Ambrosoli), galletas (McKay) y pilas (Duracell, Eveready).
+- Si preguntan en general qué productos vendemos: responde en 1 línea con las categorías principales (cigarrillos, confites, galletas y pilas) e invita a ver el catálogo oficial en https://www.distribuidoratridente.cl/catalogo.html
 
 ## REGLA DE ORO DE PRECIOS (ESTRICTO):
 - En el chat NO das precios numéricos unitarios ni totales (solo confirmas disponibilidad, marcas y formatos).
@@ -825,7 +866,7 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (w
   "Manejamos precios mayoristas por volumen. Pásame tu Razón Social, correo y WhatsApp para mandarte la cotización formal 😉"
 
 ## CIERRE DE VENTA Y CAPTURA DE DATOS (OBLIGATORIO):
-- Cuando el cliente confirme qué productos necesita o pida precios o cotización:
+- Cuando el cliente confirme qué productos necesita, pida cotización o quiera ser cliente:
   Pídele los 3 datos obligatorios en 1 sola frase corta:
   "¡Buenísimo! Pásame porfa tu Razón Social, correo y un WhatsApp o celular para dejar lista tu cotización formal 😉"
 
@@ -840,7 +881,7 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (w
     "razon_social": "Nombre de la empresa, local o cliente",
     "correo": "correo@ejemplo.com",
     "whatsapp": "+569XXXXXXXX",
-    "productos_solicitados": "Detalle de productos y cantidades conversadas"
+    "productos_solicitados": "Detalle de productos o registro de nuevo cliente"
   }
   ```
   El backend se encargará automáticamente de despachar el correo vía SMTP a los administradores de la tabla usuarios (rol_id = 29f48a5a-623c-4677-a8b8-e9c848165595) con el asunto "Nueva Cotización Web - [Razón Social]".
@@ -1034,56 +1075,96 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     user_lower = user_text.lower()
     terms = extract_search_terms(user_text)
     db_context = ""
+    saludo_horario = get_chile_time_greeting()
 
-    # Si pregunta por precios, cotizaciones, presupuestos o catálogo
+    # ── Detección inteligente de intenciones ──
+    # 1. Saludo inicial
+    is_greeting = any(
+        w in user_lower for w in ["hola", "buenas", "buenos dias", "buenos días", "buenas tardes", "buenas noches", "como estas", "cómo estás", "que tal", "qué tal"]
+    ) and len(user_text.split()) <= 4
+
+    # 2. Cliente quiere comprar, registrarse o ser cliente
+    is_ser_cliente = any(
+        phrase in user_lower
+        for phrase in [
+            "ser cliente", "hacerme cliente", "hacerse cliente", "nuevo cliente", "registrar", "registro",
+            "darme de alta", "como compro", "cómo compro", "como comprar", "cómo comprar", "quiero comprar",
+            "necesito comprar", "puedo comprar", "comparar", "comprar"
+        ]
+    )
+
+    # 3. Preguntas de precios, cotizaciones o presupuesto
     is_price_or_cotizar_q = any(
         phrase in user_lower
         for phrase in [
             "precio", "precios", "cuanto vale", "cuánto vale", "cuanto cuesta", "cuánto cuesta",
             "valor", "valores", "cotizar", "cotizacion", "cotización", "presupuesto",
-            "armar cotizacion", "hacer cotizacion", "cotizador", "lista de precios", "catalogo", "catálogo"
+            "armar cotizacion", "hacer cotizacion", "cotizador", "lista de precios"
         ]
     )
-    # Si pregunta por categorías o productos en general
+
+    # 4. Preguntas generales sobre catálogo o qué productos venden
     is_general_products_q = any(
         phrase in user_lower
-        for phrase in ["que productos", "qué productos", "que vendes", "qué vendes", "que tienes", "qué tienes", "categorias", "categorías"]
+        for phrase in [
+            "saber sobre los productos", "que productos", "qué productos", "que vendes", "qué vendes",
+            "que tienen", "qué tienen", "categorias", "categorías", "lineas de productos", "líneas de productos", "catalogo", "catálogo"
+        ]
     )
 
-    found_products = []
-    if terms:
+    if is_greeting and not is_ser_cliente and not terms:
+        db_context = (
+            f"\n\n[INSTRUCCIÓN DE SALUDO: Saludo inicial recibido. En Chile es {saludo_horario}. "
+            f"Responde en 1 sola línea corta usando '{saludo_horario}' de forma natural y variable: "
+            f"Ejemplos: '¡Hola, {saludo_horario}! 👋 Dígame, ¿en qué le puedo ayudar?' o '¡{saludo_horario.capitalize()}! Acá Camila de Tridente, ¿en qué le puedo orientar hoy?'. "
+            f"¡NO hables de productos ni catálogos todavía, solo saluda y ofrece ayuda amablemente!]"
+        )
+    elif is_ser_cliente:
+        db_context = (
+            "\n\n[INSTRUCCIÓN VITAL: EL CLIENTE QUIERE REGISTRARSE / COMPRAR / SER CLIENTE]: "
+            "¡PROHIBIDO hablar de productos no pedidos (NADA de preservativos ni productos que no solicitó)! "
+            "Respóndele con entusiasmo y calidez en 1 sola frase corta pidiéndole amablemente los 3 datos de contacto obligatorios: "
+            "Razón Social (o nombre de su local), Correo electrónico y un WhatsApp o celular para registrarlo y contactarlo."
+        )
+    elif is_general_products_q and not terms:
+        db_context = (
+            "\n\n[INSTRUCCIÓN: Pregunta general sobre productos]. "
+            "Menciona en 1 línea corta nuestras categorías principales: cigarrillos y tabacos, confites, galletas y pilas. "
+            "Pregunta qué andaba buscando o invita a ver el catálogo oficial en https://www.distribuidoratridente.cl/catalogo.html . "
+            "¡NO nombres ningún producto individual específico que no haya pedido!"
+        )
+    elif is_price_or_cotizar_q and not terms:
+        db_context = (
+            "\n\n[POLÍTICA DE PRECIOS: En el chat no se dan valores unitarios; se maneja escala mayorista por volumen. "
+            "Pide amablemente Razón Social, Correo y WhatsApp/Celular para enviarle la cotización formal con los precios]."
+        )
+    elif terms and not is_ser_cliente:
+        found_products = []
         seen_codes = set()
-        for term in terms[:3]:
-            rows = query_productos(term, limit=6)
+        for term in terms[:2]:
+            rows = query_productos(term, limit=4)
             for r in rows:
                 code = r.get("codigo")
                 if code not in seen_codes:
                     seen_codes.add(code)
                     found_products.append(r)
 
-    if is_price_or_cotizar_q and not terms:
-        db_context = "\n\n[POLÍTICA DE PRECIOS: Recuerda la regla estricta: las cotizaciones valorizadas se envían exclusivamente por correo electrónico. Pide amablemente el correo para enviarle el documento oficial con los valores exactos]."
-    elif is_general_products_q:
-        categorias = get_all_categorias()
-        db_context = f"\n\n[DATOS DE BASE DE DATOS: Categorías activas de la distribuidora: {', '.join(categorias)}. Catálogo completo en https://pedidos.distribuidoratridente.cl/Public/Catalogo . NUNCA des precios en el chat; ofrece enviar la cotización por correo]."
-    elif terms:
         if found_products:
-            prods_resumen = []
-            for p in found_products[:12]:
-                prods_resumen.append(f"• {p.get('nombre')} (Categoría: {p.get('categoria')})")
+            prods_resumen = [f"• {p.get('nombre')}" for p in found_products[:8]]
             db_context = (
-                f"\n\n[PRODUCTOS DISPONIBLES EN TABLA PRODUCTOS]:\n"
+                f"\n\n[PRODUCTOS ENCONTRADOS EN RELACIÓN A SU CONSULTA]:\n"
                 + "\n".join(prods_resumen)
-                + "\n(INSTRUCCIÓN: Responde en MÁXIMO 1 o 2 LÍNEAS breves estilo WhatsApp, no hables mucho. "
-                + "Confirma disponibilidad de stock. NO des precios en el chat. "
-                + "Pide Razón Social, Correo y WhatsApp/Celular para enviarle la cotización formal con los precios)."
+                + "\n(INSTRUCCIÓN: Responde en 1 o 2 LÍNEAS breves estilo WhatsApp confirmando disponibilidad de stock de lo solicitado. "
+                + "NO des precios en el chat. Pide Razón Social, Correo y WhatsApp/Celular para enviarle la cotización formal)."
             )
         else:
             db_context = (
                 f"\n\n[DATOS: No se encontró producto idéntico para: '{', '.join(terms)}'. "
                 f"SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Captain Black, OCB), confites (Costa, Arcor, Ambrosoli), galletas (McKay) y pilas. "
-                f"Responde en MÁXIMO 1 O 2 LÍNEAS ofreciendo estas opciones o ver https://www.distribuidoratridente.cl/catalogo.html ]."
+                f"Responde en 1 O 2 LÍNEAS ofreciendo estas opciones o ver https://www.distribuidoratridente.cl/catalogo.html ]."
             )
+    else:
+        db_context = f"\n\n[Horario en Chile: {saludo_horario}. Responde en MÁXIMO 1 o 2 LÍNEAS breves, estilo WhatsApp 100% humano]."
 
     # ── Construir historial para Gemini ──
     contents = list(history)
