@@ -624,14 +624,6 @@
 
         <!-- Cuerpo de conversación (100% humano - Estilo chat WhatsApp) -->
         <div class="wa-chat-body" id="camilaMessages">
-          <!-- Mensaje inicial de bienvenida -->
-          <div class="wa-bubble-wrap wa-bubble-in" id="camilaInitialGreeting">
-            <div class="wa-bubble">
-              ¡Hola! 👋 Qué tal, acá Camila de Distribuidora Tridente. ¿Qué andas buscando para tu negocio hoy? 😉
-              <span class="wa-bubble-meta">${getTime()}</span>
-            </div>
-          </div>
-
           <!-- Burbuja de escritura -->
           <div class="wa-typing-bubble" id="camilaTyping">
             <span class="wa-typing-dot"></span>
@@ -646,7 +638,7 @@
             type="text"
             id="camilaChatInput"
             class="wa-input-pill"
-            placeholder="Escriba su consulta aquí..."
+            placeholder="Escribe un mensaje"
             autocomplete="off"
             maxlength="300"
           />
@@ -663,7 +655,7 @@
   }
 
   // ─── Helpers de Mensajes y Persistencia ───────────────────────────────────
-  const CURRENT_VER = 'v8';
+  const CURRENT_VER = 'v9';
   const STORAGE_KEY_MSGS = `camila_chat_history_${CURRENT_VER}`;
   const STORAGE_KEY_SID  = `camila_chat_sid_${CURRENT_VER}`;
 
