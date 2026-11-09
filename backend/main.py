@@ -21,11 +21,12 @@ from dotenv import load_dotenv
 
 import base64
 import datetime
+import math
 import psycopg2
 import psycopg2.extras
 import smtplib
 from email.message import EmailMessage
-from fastapi import FastAPI, HTTPException, Response, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Response, Request, BackgroundTasks, Query
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -422,6 +423,24 @@ def send_cotizacion_email_background(cliente_data: dict, productos_lista: list):
         log.error("Error al enviar cotización por SMTP a %s: %s", destinatario, exc)
 
 
+def load_fallback_catalog() -> list[dict]:
+    """Carga los productos de respaldo desde tridente-catalog.js si la BD aún no responde."""
+    try:
+        catalog_path = os.path.join(os.path.dirname(__file__), "..", "js", "tridente-catalog.js")
+        if os.path.exists(catalog_path):
+            with open(catalog_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                m = re.search(r"window\.TRIDENTE_PRODUCTOS_PRECARGADOS\s*=\s*(\[.*?\]);", content, re.DOTALL)
+                if m:
+                    return json.loads(m.group(1))
+    except Exception as e:
+        log.warning("No se pudo cargar catalogo fallback desde archivo: %s", e)
+    return []
+
+
+_catalog_cache: dict = {"products": load_fallback_catalog(), "last_fetched": 0}
+
+
 def get_all_catalog_products() -> list[dict]:
     """Retorna el listado completo de productos activos para el cotizador web público."""
     now = time.time()
@@ -470,6 +489,179 @@ def get_all_catalog_products() -> list[dict]:
     except Exception as exc:
         log.warning("DB catalog query failed: %s", exc)
         return _catalog_cache.get("products", [])
+
+
+def get_catalog_categories() -> list[dict]:
+    """Retorna las categorías activas con conteo de productos para los filtros del catálogo."""
+    sql = f"""
+        SELECT
+            c.id,
+            c.nombre,
+            COUNT(p.id) AS total_productos
+        FROM {DB_SCHEMA}.categorias c
+        LEFT JOIN {DB_SCHEMA}.productos p ON p.categoria_id = c.id AND p.activo = true AND p.eliminado_at IS NULL
+        WHERE c.activo = true AND c.eliminado_at IS NULL
+        GROUP BY c.id, c.nombre
+        HAVING COUNT(p.id) > 0
+        ORDER BY c.nombre ASC
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(sql)
+                return [
+                    {
+                        "id": str(r["id"]),
+                        "nombre": r["nombre"],
+                        "total_productos": int(r["total_productos"]),
+                    }
+                    for r in cur.fetchall()
+                ]
+    except Exception as exc:
+        log.warning("DB get_catalog_categories fallo: %s. Usando conteo de catálogo cacheado...", exc)
+        counts = {}
+        for p in _catalog_cache.get("products", []):
+            cat = p.get("categoria") or "Otras"
+            counts[cat] = counts.get(cat, 0) + 1
+        return [
+            {"id": cat, "nombre": cat, "total_productos": count}
+            for cat, count in sorted(counts.items(), key=lambda x: x[0].lower())
+        ]
+
+
+def get_catalog_page(
+    q: Optional[str] = None,
+    categoria: Optional[str] = None,
+    categoria_id: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+) -> dict:
+    """
+    Retorna productos paginados para el catálogo público con filtros y ordenamiento estricto:
+      1° Por nombre de categoría (ASC, NULLS LAST)
+      2° Por nombre de producto (ASC)
+    """
+    page = max(1, int(page or 1))
+    limit = max(1, min(int(limit or 20), 100))
+    offset = (page - 1) * limit
+
+    cat_filter = (categoria_id or categoria or "").strip()
+    search_term = (q or "").strip()
+
+    where_clauses = [
+        "p.activo = true",
+        "p.eliminado_at IS NULL",
+    ]
+    params = []
+
+    if search_term:
+        where_clauses.append("(p.nombre ILIKE %s OR p.codigo ILIKE %s OR c.nombre ILIKE %s)")
+        pattern = f"%{search_term}%"
+        params.extend([pattern, pattern, pattern])
+
+    if cat_filter and cat_filter.upper() != "TODAS":
+        where_clauses.append("(c.id::text = %s OR c.nombre ILIKE %s)")
+        params.extend([cat_filter, f"%{cat_filter}%"])
+
+    where_sql = " AND ".join(where_clauses)
+
+    count_sql = f"""
+        SELECT COUNT(*)
+        FROM {DB_SCHEMA}.productos p
+        LEFT JOIN {DB_SCHEMA}.categorias c ON c.id = p.categoria_id
+        WHERE {where_sql}
+    """
+
+    data_sql = f"""
+        SELECT
+            p.id,
+            p.codigo,
+            p.nombre,
+            c.id AS categoria_id,
+            c.nombre AS categoria,
+            p.precio AS precio_unitario,
+            p.tiene_caja,
+            p.cantidad_caja,
+            p.precio_caja,
+            p.afecto,
+            (p.imagen_url IS NOT NULL AND length(p.imagen_url) > 20) AS has_image,
+            p.cantidad AS stock
+        FROM {DB_SCHEMA}.productos p
+        LEFT JOIN {DB_SCHEMA}.categorias c ON c.id = p.categoria_id
+        WHERE {where_sql}
+        ORDER BY c.nombre ASC NULLS LAST, p.nombre ASC
+        LIMIT %s OFFSET %s
+    """
+
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(count_sql, tuple(params))
+                total = cur.fetchone()[0] or 0
+
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                data_params = params + [limit, offset]
+                cur.execute(data_sql, tuple(data_params))
+                productos = []
+                for row in cur.fetchall():
+                    item = dict(row)
+                    pid = str(item["id"])
+                    item["id"] = pid
+                    item["codigo"] = str(item.get("codigo") or "")
+                    item["nombre"] = str(item.get("nombre") or "")
+                    item["categoria"] = str(item.get("categoria") or "Sin Categoría")
+                    item["categoria_id"] = str(item["categoria_id"]) if item.get("categoria_id") else None
+                    item["precio_unitario"] = int(item["precio_unitario"]) if item.get("precio_unitario") is not None else 0
+                    item["precio_caja"] = int(item["precio_caja"]) if item.get("precio_caja") is not None else 0
+                    has_img = bool(item.get("has_image"))
+                    item["has_image"] = has_img
+                    item["imagen_url"] = f"/api/producto/{pid}/imagen" if has_img else None
+                    item["stock"] = int(item["stock"]) if item.get("stock") is not None else None
+                    productos.append(item)
+
+                total_paginas = max(1, math.ceil(total / limit)) if total > 0 else 1
+                return {
+                    "productos": productos,
+                    "total": total,
+                    "total_paginas": total_paginas,
+                    "pagina_actual": page,
+                    "limit": limit,
+                }
+    except Exception as exc:
+        log.warning("DB get_catalog_page fallo: %s. Usando fallback en memoria...", exc)
+        # Fallback usando catálogo en memoria
+        all_prods = get_all_catalog_products()
+        filtered = []
+        for p in all_prods:
+            if search_term:
+                st = search_term.lower()
+                p_nom = str(p.get("nombre", "")).lower()
+                p_cod = str(p.get("codigo", "")).lower()
+                p_cat = str(p.get("categoria", "")).lower()
+                if st not in p_nom and st not in p_cod and st not in p_cat:
+                    continue
+            if cat_filter and cat_filter.upper() != "TODAS":
+                cf = cat_filter.lower()
+                p_cat = str(p.get("categoria", "")).lower()
+                p_cat_id = str(p.get("categoria_id", "")).lower()
+                if cf != p_cat and cf != p_cat_id and cf not in p_cat:
+                    continue
+            filtered.append(p)
+
+        # Ordenamiento estricto: primero categoría, luego nombre
+        filtered.sort(key=lambda x: (str(x.get("categoria") or "").lower(), str(x.get("nombre") or "").lower()))
+
+        total = len(filtered)
+        total_paginas = max(1, math.ceil(total / limit)) if total > 0 else 1
+        page_items = filtered[offset : offset + limit]
+
+        return {
+            "productos": page_items,
+            "total": total,
+            "total_paginas": total_paginas,
+            "pagina_actual": page,
+            "limit": limit,
+        }
 
 
 STOP_WORDS = {
@@ -901,7 +1093,7 @@ def delete_session(session_id: str):
 
 
 # ---------------------------------------------------------------------------
-# Endpoints para el Cotizador Web Público
+# Endpoints para el Cotizador Web Público y Catálogo de Productos
 # ---------------------------------------------------------------------------
 
 @app.get("/api/productos")
@@ -914,6 +1106,38 @@ def api_productos():
 def api_categorias():
     """Retorna las categorías activas para el cotizador web."""
     return get_all_categorias()
+
+
+@app.get("/api/catalogo/categorias")
+def api_catalogo_categorias():
+    """Retorna las categorías activas con conteo de productos para los filtros del catálogo."""
+    return get_catalog_categories()
+
+
+@app.get("/api/catalogo")
+@app.get("/api/productos/catalogo")
+def api_catalogo(
+    q: Optional[str] = Query(None, description="Búsqueda por texto o nombre"),
+    search: Optional[str] = Query(None, description="Alias para búsqueda"),
+    categoria: Optional[str] = Query(None, description="Filtro por nombre o slug de categoría"),
+    categoria_id: Optional[str] = Query(None, description="Filtro por ID de categoría"),
+    page: int = Query(1, ge=1, description="Número de página"),
+    limit: int = Query(20, ge=1, le=100, description="Cantidad de productos por página (20 por defecto)"),
+):
+    """
+    Endpoint público del catálogo de productos con filtros, paginación
+    y ordenamiento estricto:
+      1° Por categoría (nombre de categoría)
+      2° Alfabéticamente por nombre de producto (A-Z)
+    """
+    search_query = q or search
+    return get_catalog_page(
+        q=search_query,
+        categoria=categoria,
+        categoria_id=categoria_id,
+        page=page,
+        limit=limit,
+    )
 
 
 @app.get("/api/producto/{product_id}/imagen")

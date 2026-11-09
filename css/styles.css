@@ -142,6 +142,7 @@ body {
   display: inline-flex;
   align-items: center;
   line-height: 1.1;
+  flex-shrink: 0;
 }
 
 .nav a::after {
@@ -179,6 +180,7 @@ body {
   justify-content: center;
   line-height: 1.1;
   text-decoration: none;
+  flex-shrink: 0;
 }
 
 .nav a.nav-highlight::after {
@@ -208,6 +210,7 @@ body {
   text-decoration: none;
   white-space: nowrap !important;
   line-height: 1.1;
+  flex-shrink: 0;
 }
 
 .nav a.nav-hazte-cliente::after {
@@ -1059,17 +1062,20 @@ img.footer-logo {
     font-size: 0.82rem;
     padding: 0.35rem 0.15rem;
     white-space: nowrap !important;
+    flex-shrink: 0;
   }
   .nav a.nav-highlight,
   .nav a.nav-hazte-cliente {
     padding: 0.45rem 0.8rem;
     font-size: 0.8rem;
     white-space: nowrap !important;
+    flex-shrink: 0;
   }
   .nav a.nav-ofertas {
     padding: 0.38rem 0.7rem;
     font-size: 0.8rem;
     white-space: nowrap !important;
+    flex-shrink: 0;
   }
 }
 
@@ -1080,15 +1086,21 @@ img.footer-logo {
   .nav a {
     font-size: 0.75rem;
     padding: 0.25rem 0.1rem;
+    white-space: nowrap !important;
+    flex-shrink: 0;
   }
   .nav a.nav-highlight,
   .nav a.nav-hazte-cliente {
     padding: 0.38rem 0.65rem;
     font-size: 0.74rem;
+    white-space: nowrap !important;
+    flex-shrink: 0;
   }
   .nav a.nav-ofertas {
     padding: 0.32rem 0.55rem;
     font-size: 0.74rem;
+    white-space: nowrap !important;
+    flex-shrink: 0;
   }
 }
 
