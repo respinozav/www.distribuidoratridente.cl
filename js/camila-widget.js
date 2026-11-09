@@ -585,8 +585,8 @@
     const widget = document.createElement('div');
     widget.id = 'camilaWidget';
     widget.innerHTML = `
-      <!-- Botón Asistente Virtual Camila -->
-      <button type="button" id="camilaBtn" aria-label="Abrir asistente virtual Camila • Tridente" title="Chat con Camila • Distribuidora Tridente">
+      <!-- Botón Chat Camila -->
+      <button type="button" id="camilaBtn" aria-label="Abrir chat con Camila • Ventas Tridente" title="Chat con Camila • Distribuidora Tridente">
         <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
           <path d="M8 10h.01M12 10h.01M16 10h.01"></path>
@@ -678,8 +678,8 @@
   }
 
   // ─── Helpers de Mensajes y Persistencia ───────────────────────────────────
-  const STORAGE_KEY_MSGS = 'camila_chat_history_v2';
-  const STORAGE_KEY_SID  = 'camila_chat_sid_v2';
+  const STORAGE_KEY_MSGS = 'camila_chat_history_v5';
+  const STORAGE_KEY_SID  = 'camila_chat_sid_v5';
 
   function saveMessageToStorage(item) {
     try {
@@ -722,7 +722,7 @@
     if (status) {
       status.innerHTML = active
         ? '<em>escribiendo...</em>'
-        : '<span class="wa-status-dot"></span> Asistente Virtual • Tridente';
+        : '<span class="wa-status-dot"></span> en línea • Ventas Tridente';
     }
     scrollBottom();
   }
