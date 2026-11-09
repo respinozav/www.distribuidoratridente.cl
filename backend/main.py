@@ -114,14 +114,14 @@ def get_db():
 
 
 SYNONYMS = {
-    "cigarro": ["cigarro", "cigarrillo", "tabaco", "bat", "marlboro", "atlas", "kent", "lucky", "pall mall", "latinos"],
-    "cigarros": ["cigarro", "cigarrillo", "tabaco", "bat", "marlboro", "atlas", "kent", "lucky", "pall mall", "latinos"],
-    "cigarrillo": ["cigarrillo", "cigarro", "tabaco", "bat", "marlboro", "atlas", "kent", "lucky", "pall mall", "latinos"],
-    "cigarrillos": ["cigarrillo", "cigarro", "tabaco", "bat", "marlboro", "atlas", "kent", "lucky", "pall mall", "latinos"],
-    "pucho": ["cigarro", "cigarrillo", "tabaco", "bat", "marlboro", "atlas", "kent"],
-    "puchos": ["cigarro", "cigarrillo", "tabaco", "bat", "marlboro", "atlas", "kent"],
-    "tabaco": ["tabaco", "captain black", "ocb", "clipper", "bat", "marlboro", "atlas"],
-    "tabacos": ["tabaco", "captain black", "ocb", "clipper", "bat", "marlboro", "atlas"],
+    "cigarro": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "philip morris", "chesterfield", "tabaco"],
+    "cigarros": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "philip morris", "chesterfield", "tabaco"],
+    "cigarrillo": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "philip morris", "chesterfield", "tabaco"],
+    "cigarrillos": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "philip morris", "chesterfield", "tabaco"],
+    "pucho": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos"],
+    "puchos": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos"],
+    "tabaco": ["captain black", "bristol", "ocb", "clipper", "tabaco"],
+    "tabacos": ["captain black", "bristol", "ocb", "clipper", "tabaco"],
     "dulce": ["confites", "caramelo", "chocolate", "gomita"],
     "dulces": ["confites", "caramelo", "chocolate", "gomita"],
     "chocolate": ["chocolate", "vizzio", "costa", "arcor", "ambrosoli", "sahne nuss", "chocman"],
@@ -160,7 +160,7 @@ def query_productos(termino: str, limit: int = 12) -> list[dict]:
     try:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                for variant in search_variants[:4]:
+                for variant in search_variants[:8]:
                     pattern = f"%{variant}%"
                     sql = f"""
                         SELECT
@@ -188,6 +188,9 @@ def query_productos(termino: str, limit: int = 12) -> list[dict]:
                     cur.execute(sql, (pattern, pattern, pattern, limit))
                     for row in cur.fetchall():
                         item = dict(row)
+                        # Descartar puritos si el cliente no pidió puritos expresamente
+                        if "purito" in str(item.get("nombre") or "").lower() and "purito" not in term_clean:
+                            continue
                         code = item.get("codigo")
                         if code not in seen_codes:
                             seen_codes.add(code)
@@ -213,6 +216,8 @@ def query_productos(termino: str, limit: int = 12) -> list[dict]:
             nom = str(p.get("nombre") or "").lower()
             cat = str(p.get("categoria") or "").lower()
             cod = str(p.get("codigo") or "").lower()
+            if "purito" in nom and "purito" not in term_clean:
+                continue
             if variant in nom or variant in cat or variant in cod:
                 seen_codes.add(code)
                 results.append({
@@ -935,26 +940,40 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (w
 
 ## REGLA DE ORO DE PRODUCTOS (MUY ESTRICTO):
 - NUNCA ofrezcas ni menciones productos que el cliente NO haya preguntado expresamente.
-- PROHIBIDO ofrecer preservativos u otros productos al azar si el cliente no los mencionó.
+- PROHIBIDO TERMINANTEMENTE ofrecer preservativos u otros productos al azar si el cliente no los mencionó.
+- SI EL CLIENTE PREGUNTA POR CIGARROS, CIGARRILLOS O PUCHOS:
+  PROHIBIDO TERMINANTEMENTE DECIR "PURITOS" U OFRECER PURITOS.
+  Debes mostrar la lista y marcas reales de cigarrillos y tabaco: Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos, tabaco para enrolar y papelillos OCB.
+  Ejemplo: "¡Hola! Sí, tenemos cigarrillos (Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield) y tabacos para enrolar con papelillos OCB. ¿Qué marcas o cantidades necesitas?"
 - Si el cliente dice que quiere ser cliente, registrarse, comprar o consultar cómo comprar:
-  NO nombres ningún producto. Respóndele con entusiasmo y pídele de inmediato los 3 datos obligatorios en 1 sola frase corta:
-  "¡Excelente! Para registrarte como cliente mayorista, ¿me pasas porfa tu Razón Social, correo y un WhatsApp o celular de contacto? 😉"
+  NO nombres ningún producto. Respóndele pidiéndole los datos de esta manera exacta:
+Si Claro, mira para ser cliente o comprar, necesito estos datos
+Razón Social:
+Correo: 
+WhatsApp:
 
 ## CONSULTA DE PRODUCTOS ESPECÍFICOS:
 - Solo cuando el cliente pregunte expresamente por una categoría o producto (ej: "tienes cigarros?", "tienes galletas?"):
-  Confirma en 1 sola línea breve que sí tenemos stock y pregunta qué marcas o cantidades busca.
+  Confirma en 1 sola línea breve que sí tenemos stock y menciona las opciones reales.
+- Si pregunta por cigarros o tabaco: NUNCA digas puritos; lista cigarrillos (Kent, Lucky Strike, Pall Mall, Marlboro, etc.) y tabaco para enrolar.
 - SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Latinos, Captain Black, OCB, Clipper), confites y chocolates (Costa, Arcor, Ambrosoli), galletas (McKay) y pilas (Duracell, Eveready).
 - Si preguntan en general qué productos vendemos: responde en 1 línea con las categorías principales (cigarrillos, confites, galletas y pilas) e invita a ver el catálogo oficial en https://www.distribuidoratridente.cl/catalogo.html
 
-## REGLA DE ORO DE PRECIOS (ESTRICTO):
+## REGLA DE ORO DE PRECIOS Y COTIZACIÓN (ESTRICTO):
 - En el chat NO das precios numéricos unitarios ni totales (solo confirmas disponibilidad, marcas y formatos).
-- Si preguntan precios o cotizar:
-  "Manejamos precios mayoristas por volumen. Pásame tu Razón Social, correo y WhatsApp para mandarte la cotización formal 😉"
+- Si preguntan precios, cotizar o registrarse como cliente, debes pedir los datos así:
+Si Claro, mira para ser cliente o comprar, necesito estos datos
+Razón Social:
+Correo: 
+WhatsApp:
 
 ## CIERRE DE VENTA Y CAPTURA DE DATOS (OBLIGATORIO):
-- Cuando el cliente confirme qué productos necesita, pida cotización o quiera ser cliente:
-  Pídele los 3 datos obligatorios en 1 sola frase corta:
-  "¡Buenísimo! Pásame porfa tu Razón Social, correo y un WhatsApp o celular para dejar lista tu cotización formal 😉"
+- Cuando el cliente confirme qué productos necesita, pida cotización o quiera ser cliente o comprar:
+  Debes pedir los datos exactamente en este formato:
+Si Claro, mira para ser cliente o comprar, necesito estos datos
+Razón Social:
+Correo: 
+WhatsApp:
 
 ## ACCIÓN DE ENVÍO Y NOTIFICACIÓN:
 - Apenas el cliente te entregue los datos (Razón Social, Correo y WhatsApp/Celular):
@@ -1208,11 +1227,13 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         )
     elif is_ser_cliente:
         db_context = (
-            "\n\n[INSTRUCCIÓN VITAL: El cliente quiere registrarse o comprar. "
-            "Saluda brevemente ('¡Hola!...') y como humana responde con calidez y entusiasmo en 1 frase corta, "
-            "pidiéndole amablemente los 3 datos de contacto obligatorios: "
-            "Razón Social (nombre de su local), Correo electrónico y un WhatsApp o celular de contacto. "
-            "¡PROHIBIDO hablar de productos no pedidos como preservativos o similares!]"
+            "\n\n[INSTRUCCIÓN VITAL: El cliente quiere ser cliente o comprar. "
+            "PROHIBIDO TERMINANTEMENTE ofrecer preservativos, puritos o productos no solicitados. "
+            "DEBES responder pidiendo los datos con esta plantilla exacta:\n"
+            "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
+            "Razón Social:\n"
+            "Correo: \n"
+            "WhatsApp:]"
         )
     elif is_general_products_q and not terms:
         db_context = (
@@ -1224,13 +1245,18 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     elif is_price_or_cotizar_q and not terms:
         db_context = (
             "\n\n[POLÍTICA DE PRECIOS: En el chat no se dan valores unitarios; se maneja escala mayorista por volumen. "
-            "Saluda amablemente y pide Razón Social, Correo y WhatsApp/Celular para enviarle la cotización formal con los precios]."
+            "Explica brevemente y pide los datos exactamente así:\n"
+            "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
+            "Razón Social:\n"
+            "Correo: \n"
+            "WhatsApp:]"
         )
     elif terms:
         found_products = []
         seen_codes = set()
+        is_tobacco_query = any(t in ["cigarro", "cigarros", "cigarrillo", "cigarrillos", "pucho", "puchos", "tabaco", "tabacos"] for t in terms)
         for term in terms[:2]:
-            rows = query_productos(term, limit=4)
+            rows = query_productos(term, limit=6)
             for r in rows:
                 code = r.get("codigo")
                 if code not in seen_codes:
@@ -1238,20 +1264,51 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
                     found_products.append(r)
 
         if found_products:
-            prods_resumen = [f"• {p.get('nombre')}" for p in found_products[:8]]
+            prods_clean = [
+                p.get("nombre") for p in found_products
+                if "purito" not in str(p.get("nombre") or "").lower() or any("purito" in t for t in terms)
+            ]
+            prods_resumen = [f"• {nom}" for nom in prods_clean[:8]]
+            if is_tobacco_query:
+                instruccion = (
+                    "El cliente preguntó por cigarros o tabaco. PROHIBIDO DECIR 'puritos' o hablar de puritos. "
+                    "Saluda brevemente ('¡Hola!...') y confirma las marcas disponibles de cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, tabacos para enrolar y papelillos OCB). "
+                    "Pregunta qué cantidades busca o pide los datos así:\n"
+                    "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
+                    "Razón Social:\n"
+                    "Correo: \n"
+                    "WhatsApp:"
+                )
+            else:
+                instruccion = (
+                    "Saluda con un '¡Hola!...' y responde de inmediato confirmando stock de estas opciones de forma corta y directa. "
+                    "NO des precios en el chat. Si quiere cotizar o comprar, pide los datos así:\n"
+                    "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
+                    "Razón Social:\n"
+                    "Correo: \n"
+                    "WhatsApp:"
+                )
             db_context = (
                 f"\n\n[PRODUCTOS ENCONTRADOS RELACIONADOS A SU CONSULTA]:\n"
                 + "\n".join(prods_resumen)
-                + f"\n(INSTRUCCIÓN: El cliente preguntó por productos específicos. "
-                + "Saluda con un '¡Hola!...' y responde de inmediato como humana confirmando stock de estas opciones de forma corta y directa. "
-                + "NO des precios en el chat. Pide Razón Social, Correo y WhatsApp/Celular para enviarle la cotización formal)."
+                + f"\n(INSTRUCCIÓN: {instruccion})"
             )
         else:
-            db_context = (
-                f"\n\n[DATOS: No se encontró producto idéntico para: '{', '.join(terms)}'. "
-                f"SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Captain Black, OCB), confites (Costa, Arcor, Ambrosoli), galletas (McKay) y pilas. "
-                f"Responde en 1 O 2 LÍNEAS ofreciendo estas opciones o ver https://www.distribuidoratridente.cl/catalogo.html ]."
-            )
+            if is_tobacco_query:
+                db_context = (
+                    "\n\n[INSTRUCCIÓN CIGARROS/TABACO: SÍ vendemos cigarrillos (Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos) y tabacos para enrolar con papelillos OCB. "
+                    "¡JAMÁS digas puritos! Confirma estas marcas y pregunta qué cantidades busca o pide los datos así:\n"
+                    "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
+                    "Razón Social:\n"
+                    "Correo: \n"
+                    "WhatsApp:]"
+                )
+            else:
+                db_context = (
+                    f"\n\n[DATOS: No se encontró producto idéntico para: '{', '.join(terms)}'. "
+                    f"SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Captain Black, OCB), confites (Costa, Arcor, Ambrosoli), galletas (McKay) y pilas. "
+                    f"Responde en 1 O 2 LÍNEAS ofreciendo estas opciones o ver https://www.distribuidoratridente.cl/catalogo.html ]."
+                )
     else:
         db_context = f"\n\n[Horario en Chile: {saludo_horario}. Responde en MÁXIMO 1 o 2 LÍNEAS breves, estilo WhatsApp 100% humano]."
 
