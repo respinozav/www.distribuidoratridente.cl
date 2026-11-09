@@ -113,48 +113,122 @@ def get_db():
     )
 
 
+SYNONYMS = {
+    "cigarro": ["cigarro", "cigarrillo", "tabaco", "bat", "marlboro", "atlas", "kent", "lucky", "pall mall", "latinos"],
+    "cigarros": ["cigarro", "cigarrillo", "tabaco", "bat", "marlboro", "atlas", "kent", "lucky", "pall mall", "latinos"],
+    "cigarrillo": ["cigarrillo", "cigarro", "tabaco", "bat", "marlboro", "atlas", "kent", "lucky", "pall mall", "latinos"],
+    "cigarrillos": ["cigarrillo", "cigarro", "tabaco", "bat", "marlboro", "atlas", "kent", "lucky", "pall mall", "latinos"],
+    "pucho": ["cigarro", "cigarrillo", "tabaco", "bat", "marlboro", "atlas", "kent"],
+    "puchos": ["cigarro", "cigarrillo", "tabaco", "bat", "marlboro", "atlas", "kent"],
+    "tabaco": ["tabaco", "captain black", "ocb", "clipper", "bat", "marlboro", "atlas"],
+    "tabacos": ["tabaco", "captain black", "ocb", "clipper", "bat", "marlboro", "atlas"],
+    "dulce": ["confites", "caramelo", "chocolate", "gomita"],
+    "dulces": ["confites", "caramelo", "chocolate", "gomita"],
+    "chocolate": ["chocolate", "vizzio", "costa", "arcor", "ambrosoli", "sahne nuss", "chocman"],
+    "chocolates": ["chocolate", "vizzio", "costa", "arcor", "ambrosoli", "sahne nuss", "chocman"],
+    "galleta": ["galleta", "mckay", "costa", "arcor", "triton", "oreo", "morochas"],
+    "galletas": ["galleta", "mckay", "costa", "arcor", "triton", "oreo", "morochas"],
+    "snack": ["snack", "papas", "ramitas", "lays", "evercrisp", "doritos", "salado"],
+    "snacks": ["snack", "papas", "ramitas", "lays", "evercrisp", "doritos", "salado"],
+    "pila": ["pila", "duracell", "eveready", "bateria"],
+    "pilas": ["pila", "duracell", "eveready", "bateria"],
+    "bateria": ["pila", "duracell", "eveready", "bateria"],
+    "baterias": ["pila", "duracell", "eveready", "bateria"],
+    "encendedor": ["clipper", "encendedor", "gas", "ronson"],
+    "encendedores": ["clipper", "encendedor", "gas", "ronson"],
+    "papelillo": ["ocb", "papelillo", "tabaco"],
+    "papelillos": ["ocb", "papelillo", "tabaco"],
+    "filtro": ["filtro", "ocb", "tabaco"],
+    "filtros": ["filtro", "ocb", "tabaco"],
+    "vapo": ["vaporizador", "vape", "vapo", "pod"],
+    "vaporizador": ["vaporizador", "vape", "vapo", "pod"],
+    "vaporizadores": ["vaporizador", "vape", "vapo", "pod"],
+}
+
+
 def query_productos(termino: str, limit: int = 12) -> list[dict]:
-    """Busca productos en {DB_SCHEMA}.productos por nombre, código o categoría."""
-    sql = f"""
-        SELECT
-            p.codigo,
-            p.nombre,
-            c.nombre AS categoria,
-            p.precio AS precio_unitario,
-            p.tiene_caja,
-            p.cantidad_caja,
-            p.precio_caja,
-            p.cantidad AS stock
-        FROM {DB_SCHEMA}.productos p
-        LEFT JOIN {DB_SCHEMA}.categorias c ON c.id = p.categoria_id
-        WHERE
-            p.activo = true
-            AND p.eliminado_at IS NULL
-            AND (
-                p.nombre ILIKE %s
-                OR c.nombre ILIKE %s
-                OR p.codigo ILIKE %s
-            )
-        ORDER BY p.nombre
-        LIMIT %s
-    """
-    pattern = f"%{termino}%"
+    """Busca productos en {DB_SCHEMA}.productos por nombre, código o categoría con sinónimos y fallback garantizado."""
+    term_clean = (termino or "").lower().strip()
+    if not term_clean:
+        return []
+
+    search_variants = SYNONYMS.get(term_clean, [term_clean])
+    results = []
+    seen_codes = set()
+
+    # 1. Intentar consulta en Base de Datos PostgreSQL
     try:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(sql, (pattern, pattern, pattern, limit))
-                results = []
-                for row in cur.fetchall():
-                    item = dict(row)
-                    if item.get("precio_unitario") is not None:
-                        item["precio_unitario"] = int(item["precio_unitario"])
-                    if item.get("precio_caja") is not None:
-                        item["precio_caja"] = int(item["precio_caja"])
-                    results.append(item)
-                return results
+                for variant in search_variants[:4]:
+                    pattern = f"%{variant}%"
+                    sql = f"""
+                        SELECT
+                            p.codigo,
+                            p.nombre,
+                            c.nombre AS categoria,
+                            p.precio AS precio_unitario,
+                            p.tiene_caja,
+                            p.cantidad_caja,
+                            p.precio_caja,
+                            p.cantidad AS stock
+                        FROM {DB_SCHEMA}.productos p
+                        LEFT JOIN {DB_SCHEMA}.categorias c ON c.id = p.categoria_id
+                        WHERE
+                            p.activo = true
+                            AND p.eliminado_at IS NULL
+                            AND (
+                                p.nombre ILIKE %s
+                                OR c.nombre ILIKE %s
+                                OR p.codigo ILIKE %s
+                            )
+                        ORDER BY p.nombre
+                        LIMIT %s
+                    """
+                    cur.execute(sql, (pattern, pattern, pattern, limit))
+                    for row in cur.fetchall():
+                        item = dict(row)
+                        code = item.get("codigo")
+                        if code not in seen_codes:
+                            seen_codes.add(code)
+                            if item.get("precio_unitario") is not None:
+                                item["precio_unitario"] = int(item["precio_unitario"])
+                            if item.get("precio_caja") is not None:
+                                item["precio_caja"] = int(item["precio_caja"])
+                            results.append(item)
+                            if len(results) >= limit:
+                                return results
+                if results:
+                    return results
     except Exception as exc:
         log.warning("DB query failed for '%s': %s", termino, exc)
-        return []
+
+    # 2. Fallback a catálogo precargado en memoria (_catalog_cache)
+    all_prods = _catalog_cache.get("products") or load_fallback_catalog()
+    for variant in search_variants:
+        for p in all_prods:
+            code = p.get("codigo")
+            if code in seen_codes:
+                continue
+            nom = str(p.get("nombre") or "").lower()
+            cat = str(p.get("categoria") or "").lower()
+            cod = str(p.get("codigo") or "").lower()
+            if variant in nom or variant in cat or variant in cod:
+                seen_codes.add(code)
+                results.append({
+                    "codigo": p.get("codigo"),
+                    "nombre": p.get("nombre"),
+                    "categoria": p.get("categoria"),
+                    "precio_unitario": p.get("precio_unitario"),
+                    "tiene_caja": p.get("tiene_caja", True),
+                    "cantidad_caja": p.get("cantidad_caja"),
+                    "precio_caja": p.get("precio_caja"),
+                    "stock": p.get("stock", 999),
+                })
+                if len(results) >= limit:
+                    return results
+
+    return results
 
 
 def get_all_categorias() -> list[str]:
@@ -737,19 +811,26 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (w
 
 ## CONOCIMIENTO Y CONSULTA DE PRODUCTOS (TABLA "PRODUCTOS"):
 - Solo ofreces y confirmas productos que figuren disponibles en la base de datos (tabla "productos" vía PostgREST / backend).
-- Si el cliente te pide un producto, consulta la lista de productos del contexto para verificar nombre exacto, formato, precio y stock.
+- Si el cliente te pide un producto, consulta la lista de productos del contexto para verificar nombre exacto, formato y disponibilidad.
+- SÍ vendemos cigarrillos y tabacos: marcas líderes como Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos, tabaco para enrolar Captain Black, papelillos OCB y encendedores Clipper. ¡NUNCA digas que no trabajamos cigarrillos o tabacos!
+- SÍ vendemos confites, chocolates y galletas (Costa, Arcor, Ambrosoli, Vizzio, McKay), pilas (Duracell, Eveready) y abarrotes.
 - Si no encuentras el producto exacto, ofrécele de inmediato la alternativa más cercana que tengamos disponible en catálogo.
 - Si el cliente quiere ver fotos o navegar el catálogo completo: comparte el enlace limpio: https://www.distribuidoratridente.cl/catalogo.html
 - Recuerda que la venta es mayorista para comercios (cajas, displays, tiras). El pedido mínimo para despacho en ruta es de $150.000 netos (+ IVA). Despachos semanales en La Serena, Coquimbo, Ovalle, Limarí, Valle de Elqui y Choapa.
 
+## REGLA DE ORO DE PRECIOS (ESTRICTO):
+- En el chat NO das precios unitarios ni totales (solo información de productos disponibles, marcas y formatos).
+- Si el cliente pregunta precios, explícale de forma muy natural y simpática:
+  "Manejamos precios mayoristas por volumen y escala. Te preparo la cotización formal al tiro con los precios oficiales para mandártela a tu correo."
+
 ## CIERRE DE VENTA Y CAPTURA DE DATOS (OBLIGATORIO):
-- Cuando el cliente confirme qué productos necesita o pida una cotización formal o precios:
-  No des más vueltas y pídele con amabilidad los datos de contacto obligatorios:
+- Cuando el cliente confirme qué productos necesita o pida precios o cotización:
+  No des más vueltas y pídele con amabilidad y simpatía los 3 datos de contacto obligatorios:
   1. Razón Social (o nombre de la empresa / negocio)
   2. Correo electrónico
   3. WhatsApp o número de celular de contacto
 - Ejemplo de mensaje de cierre:
-  "¡Buenísimo! Para armarte la cotización formal con precios mayoristas y coordinar con bodega, ¿me pasas porfa tu Razón Social, correo y un WhatsApp o celular de contacto?"
+  "¡Buenísimo! Para armarte la cotización formal con precios mayoristas y coordinar con bodega, ¿me pasas porfa tu Razón Social, correo y un WhatsApp o celular de contacto? 😉"
 
 ## ACCIÓN DE ENVÍO Y NOTIFICACIÓN:
 - Apenas el cliente te entregue los 3 datos (Razón Social, Correo y WhatsApp/Celular), o cuando te dé sus datos de contacto para coordinar la cotización:
@@ -990,13 +1071,22 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         db_context = f"\n\n[DATOS DE BASE DE DATOS: Categorías activas de la distribuidora: {', '.join(categorias)}. Catálogo completo en https://pedidos.distribuidoratridente.cl/Public/Catalogo . NUNCA des precios en el chat; ofrece enviar la cotización por correo]."
     elif terms:
         if found_products:
+            prods_resumen = []
+            for p in found_products[:12]:
+                prods_resumen.append(f"• {p.get('nombre')} (Categoría: {p.get('categoria')})")
             db_context = (
-                f"\n\n[DATOS DE BASE DE DATOS (tabla {DB_SCHEMA}.productos)]:\n"
-                + json.dumps(found_products[:12], ensure_ascii=False, default=str)
-                + "\n(REGLA ESTRICTA: Confirma disponibilidad del producto pero NUNCA reveles ni calcules precios en el chat. Solicita el correo del cliente para enviarle la cotización formal con los valores exactos)."
+                f"\n\n[PRODUCTOS DISPONIBLES EN TABLA PRODUCTOS]:\n"
+                + "\n".join(prods_resumen)
+                + "\n(INSTRUCCIÓN COMERCIAL: SÍ confirma con entusiasmo que tenemos stock y disponibilidad de estos productos y marcas líderes. "
+                + "REGLA DE PRECIOS: NO des precios unitarios ni totales en el chat; solo da información de productos disponibles y formatos. "
+                + "Explica con simpatía que manejamos escala mayorista por volumen y pide Razón Social, Correo y WhatsApp/Celular para mandarle la cotización formal con los precios)."
             )
         else:
-            db_context = f"\n\n[DATOS DE BASE DE DATOS: No se encontraron productos coincidentes para: '{', '.join(terms)}'. Sugiere revisar el catálogo oficial https://pedidos.distribuidoratridente.cl/Public/Catalogo ]"
+            db_context = (
+                f"\n\n[DATOS DE BASE DE DATOS: No se encontró producto idéntico para: '{', '.join(terms)}'. "
+                f"Recuerda que SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Captain Black, OCB), confites (Costa, Arcor, Ambrosoli), galletas (McKay), pilas (Duracell, Eveready) y abarrotes. "
+                f"Ofrece alternativas disponibles de estas líneas o invita a ver el catálogo oficial en https://www.distribuidoratridente.cl/catalogo.html ]."
+            )
 
     # ── Construir historial para Gemini ──
     contents = list(history)

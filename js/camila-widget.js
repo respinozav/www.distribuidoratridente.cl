@@ -608,7 +608,7 @@
           <div class="wa-header-info">
             <h4 class="wa-contact-name">Camila</h4>
             <p class="wa-contact-status" id="camilaStatusText">
-              <span class="wa-status-dot"></span> Asistente Virtual • Tridente
+              <span class="wa-status-dot"></span> en línea • Ventas Tridente
             </p>
           </div>
           <div class="wa-header-actions">
@@ -628,13 +628,13 @@
 
           <!-- Chip de aviso -->
           <div class="wa-chip-notice">
-            🔒 Chat con <strong>Camila</strong> • Asistente Virtual de Ventas
+            🔒 Chat directo con <strong>Camila</strong> • Ventas Mayoristas Tridente
           </div>
 
           <!-- Mensaje inicial de bienvenida -->
           <div class="wa-bubble-wrap wa-bubble-in" id="camilaInitialGreeting">
             <div class="wa-bubble">
-              ¡Hola! Le doy la bienvenida a Distribuidora Tridente. Soy Camila, asistente virtual de ventas. ¿En qué le puedo orientar hoy?
+              ¡Hola! 👋 Qué tal, acá Camila de Distribuidora Tridente. ¿Qué andas buscando para tu negocio hoy? 😉
               <span class="wa-bubble-meta">${getTime()}</span>
             </div>
           </div>
@@ -803,6 +803,29 @@
     scrollBottom();
   }
 
+  // ─── Seguimiento Automático por Inactividad (5 Minutos) ───────────────────
+  let idleFollowupTimer = null;
+  const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
+  let hasFollowedUp = false;
+
+  function resetIdleFollowupTimer() {
+    if (idleFollowupTimer) clearTimeout(idleFollowupTimer);
+    idleFollowupTimer = setTimeout(triggerIdleFollowup, IDLE_TIMEOUT_MS);
+  }
+
+  function triggerIdleFollowup() {
+    if (hasFollowedUp) return;
+    const history = getStoredHistory();
+    // Solo enviar seguimiento si el usuario ya escribió al menos un mensaje
+    const userMessages = history.filter(h => h.type === 'user');
+    if (userMessages.length === 0) return;
+
+    hasFollowedUp = true;
+    const followupHtml = 'Hola, ¿sigues por ahí? 👋 ¿Te puedo ayudar en algo más para tu negocio o prefieres que te contactemos por WhatsApp? 😉';
+    const waUrl = 'https://wa.me/56979875179?text=' + encodeURIComponent('¡Hola Camila! Estaba en la web de Tridente, ¿me puedes ayudar con una cotización para mi negocio?');
+    appendBotMessage(followupHtml, waUrl);
+  }
+
   // ─── Enviar mensaje al Backend Python ─────────────────────────────────────
   async function sendMessage(text) {
     const input = document.getElementById('camilaChatInput');
@@ -810,6 +833,7 @@
     if (input) input.disabled = true;
     if (sendBtn) sendBtn.disabled = true;
 
+    resetIdleFollowupTimer();
     setTyping(true);
     const startTime = Date.now();
 
@@ -841,7 +865,7 @@
     } catch (err) {
       setTyping(false);
       appendBotMessage(
-        '⚠️ Tuve un inconveniente momentáneo de conexión con el sistema. Por favor reintente en unos instantes o consulte nuestro catálogo en <a href="https://pedidos.distribuidoratridente.cl/Public/Catalogo" target="_blank" class="wa-link">Catálogo Oficial</a>.',
+        '⚠️ Tuve un inconveniente momentáneo de conexión con el sistema. Por favor reintente en unos instantes o consulte nuestro catálogo en <a href="catalogo.html" class="wa-link">Catálogo Oficial</a>.',
         null
       );
       console.error('Camila Error:', err);
