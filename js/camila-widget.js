@@ -86,33 +86,35 @@
         touch-action: none;
       }
 
-      /* Botón flotante Asistente Virtual Camila */
+      /* Botón flotante WhatsApp Camila */
       #camilaBtn {
         width: 60px;
         height: 60px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #0f2a4a 0%, #0284c7 100%);
+        background: #25D366;
         border: none;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 4px 18px rgba(15, 42, 74, 0.35);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 4px 18px rgba(37, 211, 102, 0.45);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
         position: relative;
         outline: none;
         -webkit-tap-highlight-color: transparent;
       }
       #camilaBtn:hover {
         transform: scale(1.08);
-        box-shadow: 0 6px 24px rgba(2, 132, 199, 0.45);
+        background: #20ba5a;
+        box-shadow: 0 6px 24px rgba(37, 211, 102, 0.55);
       }
       #camilaBtn:active {
         transform: scale(0.96);
+        background: #1eaa52;
       }
       #camilaBtn svg {
-        width: 30px;
-        height: 30px;
+        width: 35px;
+        height: 35px;
         display: block;
         pointer-events: none;
       }
@@ -585,11 +587,10 @@
     const widget = document.createElement('div');
     widget.id = 'camilaWidget';
     widget.innerHTML = `
-      <!-- Botón Chat Camila -->
-      <button type="button" id="camilaBtn" aria-label="Abrir chat con Camila • Ventas Tridente" title="Chat con Camila • Distribuidora Tridente">
-        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          <path d="M8 10h.01M12 10h.01M16 10h.01"></path>
+      <!-- Botón Chat Camila (WhatsApp Oficial) -->
+      <button type="button" id="camilaBtn" aria-label="Abrir WhatsApp con Camila • Ventas Tridente" title="WhatsApp con Camila • Distribuidora Tridente">
+        <svg viewBox="0 0 32 32" width="34" height="34" fill="#ffffff" aria-hidden="true">
+          <path d="M16 2a13.9 13.9 0 0 0-12 20.9L2 30l7.3-1.9A13.9 13.9 0 1 0 16 2zm0 25.5a11.6 11.6 0 0 1-5.9-1.6l-.4-.3-4.4 1.1 1.2-4.2-.3-.4A11.6 11.6 0 1 1 16 27.5zm6.4-8.7c-.3-.2-2-.9-2.3-1s-.6-.2-.8.2-.9 1-1.1 1.2-.4.3-.7.1a9.2 9.2 0 0 1-2.7-1.7 10.2 10.2 0 0 1-1.9-2.3c-.2-.3 0-.5.2-.7s.3-.4.5-.6.2-.3.3-.5.1-.4 0-.5-.8-2-1.1-2.7c-.3-.7-.6-.6-.8-.6h-.7c-.2 0-.7.1-1.1.5s-1.5 1.5-1.5 3.6 1.5 4.1 1.7 4.4 3 4.6 7.3 6.4c1 .4 1.8.7 2.4.9 1 .3 2 .3 2.7.2.8-.1 2.5-1 2.8-2s.3-1.8.2-2c-.1-.2-.4-.3-.7-.5z"/>
         </svg>
       </button>
 
@@ -621,30 +622,14 @@
           </div>
         </div>
 
-        <!-- Cuerpo de conversación -->
+        <!-- Cuerpo de conversación (100% humano - Estilo chat WhatsApp) -->
         <div class="wa-chat-body" id="camilaMessages">
-          <!-- Chip fecha -->
-          <div class="wa-chip-date">Hoy</div>
-
-          <!-- Chip de aviso -->
-          <div class="wa-chip-notice">
-            🔒 Chat directo con <strong>Camila</strong> • Ventas Mayoristas Tridente
-          </div>
-
           <!-- Mensaje inicial de bienvenida -->
           <div class="wa-bubble-wrap wa-bubble-in" id="camilaInitialGreeting">
             <div class="wa-bubble">
               ¡Hola! 👋 Qué tal, acá Camila de Distribuidora Tridente. ¿Qué andas buscando para tu negocio hoy? 😉
               <span class="wa-bubble-meta">${getTime()}</span>
             </div>
-          </div>
-
-          <!-- Chips de consulta rápida -->
-          <div class="wa-quick-chips" id="camilaQuickChips">
-            <button type="button" class="wa-chip-btn" data-msg="Quisiera cotizar productos por correo">📋 Cotizar por correo</button>
-            <button type="button" class="wa-chip-btn" data-msg="Ver catálogo">📖 Ver catálogo</button>
-            <button type="button" class="wa-chip-btn" data-msg="¿Cuál es el pedido mínimo?">📦 Pedido mínimo</button>
-            <button type="button" class="wa-chip-btn" data-msg="Quisiera hablar con un vendedor">👤 Hablar con un vendedor</button>
           </div>
 
           <!-- Burbuja de escritura -->
@@ -678,7 +663,7 @@
   }
 
   // ─── Helpers de Mensajes y Persistencia ───────────────────────────────────
-  const CURRENT_VER = 'v7';
+  const CURRENT_VER = 'v8';
   const STORAGE_KEY_MSGS = `camila_chat_history_${CURRENT_VER}`;
   const STORAGE_KEY_SID  = `camila_chat_sid_${CURRENT_VER}`;
 
