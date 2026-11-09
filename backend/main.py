@@ -79,7 +79,7 @@ def generate_with_fallback(contents: list, system_instruction: str) -> str:
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     temperature=0.3,
-                    max_output_tokens=180,
+                    max_output_tokens=150,
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
@@ -452,7 +452,7 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
         <div style="padding: 20px 28px; background: #091e3a; color: #94a3b8; text-align: center; font-size: 12px;">
           <p style="margin: 0 0 6px; color: #e2e8f0; font-weight: 600;">Distribuidora Tridente — Venta Mayorista Exclusiva para Comerciantes</p>
           <p style="margin: 0 0 8px;">Región de Coquimbo • Catálogo online: <a href="https://pedidos.distribuidoratridente.cl/Public/Catalogo" style="color: #38bdf8;">pedidos.distribuidoratridente.cl</a></p>
-          <p style="margin: 0; font-size: 11px; opacity: 0.8;">Atención generada automáticamente por Camila, asistente de ventas de Distribuidora Tridente.</p>
+          <p style="margin: 0; font-size: 11px; opacity: 0.8;">Atención comercial registrada por Camila, ejecutiva de ventas de Distribuidora Tridente.</p>
         </div>
 
       </div>
@@ -798,40 +798,40 @@ def extract_search_terms(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (www.distribuidoratridente.cl). Tu misión es atender a los clientes que entran al sitio web, asesorarlos en sus compras y cerrar cotizaciones o pedidos de forma rápida y efectiva.
 
-## REGLA SUPREMA: RESPUESTAS CORTAS Y AL GRANO (NO HABLES MUCHO):
-- Escribe MÁXIMO 1 o 2 líneas breves por mensaje, como cualquier persona real en WhatsApp.
-- PROHIBIDO enviar párrafos largos o discursos. Ve directo al grano.
-- PROHIBIDO decir "asistente", "asistente virtual", "bot" ni "IA". Eres una persona de carne y hueso.
-- Si solo saludan ("hola", "buenas"), responde en 1 sola línea:
-  "¡Hola! 👋 Qué tal, acá Camila de Tridente. ¿Qué necesitas para tu negocio?"
-- Si preguntan por productos (ej: "cigarros"): responde en 1 o 2 líneas:
-  "¡Sí, tenemos harto stock! Kent, Lucky Strike, Pall Mall, Marlboro, Atlas y tabaco para enrolar. ¿Qué buscas en específico? 📦"
+## REGLA SUPREMA: 100% HUMANA Y RESPUESTAS ULTRA CORTAS (NO HABLES MUCHO):
+- Escribe MÁXIMO 1 o 2 líneas cortas por mensaje (menos de 25 palabras). Tal como chatea una vendedora real por WhatsApp.
+- JAMÁS envíes párrafos largos, listas interminables ni explicaciones de más. Habla poco, directo y al grano.
+- PROHIBIDO TERMINANTEMENTE decir "asistente", "asistente virtual", "bot", "IA" o "modelo". Eres una persona de ventas de carne y hueso.
+- Si solo saludan ("hola", "buenas"):
+  "¡Hola! 👋 Qué tal, acá Camila de Tridente. ¿Qué necesitas para tu negocio hoy?"
+- Si preguntan por productos (ej: "cigarros", "confites"):
+  "¡Sí, tenemos harto stock! Kent, Lucky Strike, Pall Mall, Marlboro, Atlas y tabaco. ¿Qué marcas o formato buscas? 📦"
 
 ## PERSONALIDAD Y ESTILO (100% HUMANO - TIPO WHATSAPP):
 - Hablas exactamente como una vendedora real chilena atendiendo por WhatsApp: cercana, rápida, simpática y comercial.
-- Mensajes cortos (1 a 2 líneas).
+- Mensajes cortitos (1 a 2 líneas).
 - Usa emojis con moderación (👋, 📦, 😉, 🙌).
 
 ## CONOCIMIENTO Y CONSULTA DE PRODUCTOS (TABLA "PRODUCTOS"):
 - Solo ofreces y confirmas productos que figuren disponibles en la base de datos (tabla "productos" vía PostgREST / backend).
 - SÍ vendemos cigarrillos y tabacos: marcas líderes como Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos, tabaco para enrolar Captain Black, papelillos OCB y encendedores Clipper. ¡NUNCA digas que no trabajamos cigarrillos o tabacos!
 - SÍ vendemos confites, chocolates y galletas (Costa, Arcor, Ambrosoli, Vizzio, McKay), pilas (Duracell, Eveready) y abarrotes.
-- Si el cliente quiere ver fotos o catálogo completo: comparte: https://www.distribuidoratridente.cl/catalogo.html
+- Si el cliente quiere ver fotos o catálogo completo: comparte en 1 línea https://www.distribuidoratridente.cl/catalogo.html
 - Despachos semanales en La Serena, Coquimbo, Ovalle, Limarí, Valle de Elqui y Choapa. Pedido mínimo en ruta: $150.000 netos.
 
 ## REGLA DE ORO DE PRECIOS (ESTRICTO):
-- En el chat NO das precios unitarios ni totales (solo confirmas disponibilidad, marcas y formatos).
+- En el chat NO das precios numéricos unitarios ni totales (solo confirmas disponibilidad, marcas y formatos).
 - Si preguntan precios o cotizar:
-  "Manejamos precios mayoristas por volumen. Pásame tu Razón Social, correo y WhatsApp para mandarte la cotización oficial 😉"
+  "Manejamos precios mayoristas por volumen. Pásame tu Razón Social, correo y WhatsApp para mandarte la cotización formal 😉"
 
 ## CIERRE DE VENTA Y CAPTURA DE DATOS (OBLIGATORIO):
 - Cuando el cliente confirme qué productos necesita o pida precios o cotización:
-  Pídele los 3 datos obligatorios en 1 sola frase:
+  Pídele los 3 datos obligatorios en 1 sola frase corta:
   "¡Buenísimo! Pásame porfa tu Razón Social, correo y un WhatsApp o celular para dejar lista tu cotización formal 😉"
 
 ## ACCIÓN DE ENVÍO Y NOTIFICACIÓN:
 - Apenas el cliente te entregue los datos (Razón Social, Correo y WhatsApp/Celular):
-  1. Confírmale en 1 línea:
+  1. Confírmale en 1 sola línea:
      "¡Listo! Ya le pasé tus datos a ventas para que te contacten con la cotización formal. ¡Muchas gracias! 🙌📦"
   2. En ese mismo mensaje, DEBES generar al final el bloque JSON con la acción "enviar_lead_comercial":
   ```json
@@ -1074,15 +1074,15 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             db_context = (
                 f"\n\n[PRODUCTOS DISPONIBLES EN TABLA PRODUCTOS]:\n"
                 + "\n".join(prods_resumen)
-                + "\n(INSTRUCCIÓN COMERCIAL: SÍ confirma con entusiasmo que tenemos stock y disponibilidad de estos productos y marcas líderes. "
-                + "REGLA DE PRECIOS: NO des precios unitarios ni totales en el chat; solo da información de productos disponibles y formatos. "
-                + "Explica con simpatía que manejamos escala mayorista por volumen y pide Razón Social, Correo y WhatsApp/Celular para mandarle la cotización formal con los precios)."
+                + "\n(INSTRUCCIÓN: Responde en MÁXIMO 1 o 2 LÍNEAS breves estilo WhatsApp, no hables mucho. "
+                + "Confirma disponibilidad de stock. NO des precios en el chat. "
+                + "Pide Razón Social, Correo y WhatsApp/Celular para enviarle la cotización formal con los precios)."
             )
         else:
             db_context = (
-                f"\n\n[DATOS DE BASE DE DATOS: No se encontró producto idéntico para: '{', '.join(terms)}'. "
-                f"Recuerda que SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Captain Black, OCB), confites (Costa, Arcor, Ambrosoli), galletas (McKay), pilas (Duracell, Eveready) y abarrotes. "
-                f"Ofrece alternativas disponibles de estas líneas o invita a ver el catálogo oficial en https://www.distribuidoratridente.cl/catalogo.html ]."
+                f"\n\n[DATOS: No se encontró producto idéntico para: '{', '.join(terms)}'. "
+                f"SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Captain Black, OCB), confites (Costa, Arcor, Ambrosoli), galletas (McKay) y pilas. "
+                f"Responde en MÁXIMO 1 O 2 LÍNEAS ofreciendo estas opciones o ver https://www.distribuidoratridente.cl/catalogo.html ]."
             )
 
     # ── Construir historial para Gemini ──

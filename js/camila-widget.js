@@ -678,8 +678,19 @@
   }
 
   // ─── Helpers de Mensajes y Persistencia ───────────────────────────────────
-  const STORAGE_KEY_MSGS = 'camila_chat_history_v5';
-  const STORAGE_KEY_SID  = 'camila_chat_sid_v5';
+  const CURRENT_VER = 'v7';
+  const STORAGE_KEY_MSGS = `camila_chat_history_${CURRENT_VER}`;
+  const STORAGE_KEY_SID  = `camila_chat_sid_${CURRENT_VER}`;
+
+  // Purgar versiones antiguas de almacenamiento para evitar residuos de textos anteriores
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith('camila_') && !k.includes(CURRENT_VER)) {
+        sessionStorage.removeItem(k);
+      }
+    }
+  } catch (_) {}
 
   function saveMessageToStorage(item) {
     try {
