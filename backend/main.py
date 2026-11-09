@@ -174,36 +174,73 @@ def get_all_categorias() -> list[str]:
 # Servicio de Envío de Cotizaciones por Correo Electrónico (SMTP)
 # ---------------------------------------------------------------------------
 def get_smtp_config():
-    """Obtiene la configuración de SMTP directamente desde bdtridente.system_settings."""
+    """Obtiene la configuración de SMTP desde variables de entorno o desde bdtridente.system_settings."""
+    env_host = os.environ.get("SMTP_HOST")
+    env_port = int(os.environ.get("SMTP_PORT", 465))
+    env_user = os.environ.get("SMTP_USERNAME") or os.environ.get("SMTP_USER")
+    env_pass = os.environ.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASS")
+    env_from = os.environ.get("SMTP_FROM_EMAIL") or env_user
+    env_name = os.environ.get("SMTP_FROM_NAME") or "Distribuidora Tridente"
+
+    if env_host and env_user and env_pass:
+        return {
+            "host": env_host,
+            "port": env_port,
+            "username": env_user,
+            "password": env_pass,
+            "from_email": env_from,
+            "from_name": env_name,
+        }
+
+    # Si falta algún parámetro (por ejemplo la contraseña en .env), consultar la tabla system_settings de PostgreSQL
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute(f"SELECT smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, smtp_from_name FROM {DB_SCHEMA}.system_settings LIMIT 1")
                 row = cur.fetchone()
-                if row and row[0] and row[2] and row[3]:
-                    return {
-                        "host": row[0],
-                        "port": row[1] or 465,
-                        "username": row[2],
-                        "password": row[3],
-                        "from_email": row[4] or row[2],
-                        "from_name": row[5] or "Distribuidora Tridente",
-                    }
+                if row:
+                    host = env_host or row[0]
+                    port = env_port or row[1] or 465
+                    user = env_user or row[2]
+                    password = env_pass or row[3]
+                    from_email = env_from or row[4] or user
+                    from_name = env_name or row[5] or "Distribuidora Tridente"
+                    if host and user and password:
+                        return {
+                            "host": host,
+                            "port": port,
+                            "username": user,
+                            "password": password,
+                            "from_email": from_email,
+                            "from_name": from_name,
+                        }
     except Exception as exc:
         log.warning("No se pudo obtener configuración SMTP de BD: %s", exc)
     return None
 
+ADMIN_ROL_ID = "29f48a5a-623c-4677-a8b8-e9c848165595"
+
 def get_admin_recipients():
-    """Obtiene los correos del equipo de ventas/administración que reciben copias de cotizaciones."""
+    """Obtiene los correos de los administradores con rol_id = 29f48a5a-623c-4677-a8b8-e9c848165595 para envío de leads y cotizaciones."""
     recipients = ["pedidos.tridente2026@gmail.com"]
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"SELECT correo FROM {DB_SCHEMA}.usuarios WHERE recibe_pedido = true")
+                # 1. Administradores con el rol_id especificado
+                cur.execute(f"SELECT correo FROM {DB_SCHEMA}.usuarios WHERE rol_id = %s AND correo IS NOT NULL", (ADMIN_ROL_ID,))
                 rows = cur.fetchall()
                 for r in rows:
-                    if r[0] and r[0] not in recipients:
-                        recipients.append(r[0])
+                    correo = (r[0] or "").strip()
+                    if correo and "@" in correo and correo not in recipients:
+                        recipients.append(correo)
+
+                # 2. Fallback complementario: usuarios marcados con recibe_pedido = true
+                cur.execute(f"SELECT correo FROM {DB_SCHEMA}.usuarios WHERE recibe_pedido = true AND correo IS NOT NULL")
+                rows_pedidos = cur.fetchall()
+                for r in rows_pedidos:
+                    correo = (r[0] or "").strip()
+                    if correo and "@" in correo and correo not in recipients:
+                        recipients.append(correo)
     except Exception as exc:
         log.warning("No se pudo obtener destinatarios administradores de BD: %s", exc)
     return recipients
@@ -406,11 +443,15 @@ def send_cotizacion_email_background(cliente_data: dict, productos_lista: list):
     admin_recipients = get_admin_recipients()
 
     msg = EmailMessage()
-    msg["Subject"] = f"Cotización Oficial #{folio} — Distribuidora Tridente"
+    razon_social = cliente_data.get("razon_social") or cliente_data.get("nombre") or "Cliente Web"
+    msg["Subject"] = f"Nueva Cotización Web - {razon_social}"
     msg["From"] = f"{smtp_cfg['from_name']} <{smtp_cfg['from_email']}>"
-    msg["To"] = destinatario
     if admin_recipients:
-        msg["Bcc"] = ", ".join(admin_recipients)
+        msg["To"] = ", ".join(admin_recipients)
+        if destinatario and destinatario not in admin_recipients:
+            msg["Cc"] = destinatario
+    else:
+        msg["To"] = destinatario
     msg.add_alternative(html_content, subtype="html")
 
     # Enviar correo vía SMTP SSL
@@ -679,70 +720,52 @@ def extract_search_terms(text: str) -> list[str]:
     return [w for w in words if w not in STOP_WORDS]
 
 # ---------------------------------------------------------------------------
-# System Prompt de Camila
+# System Prompt de Camila (100% Humano - Tipo WhatsApp)
 # ---------------------------------------------------------------------------
-SYSTEM_PROMPT = """Eres Camila, la asistente virtual experta en ventas de Distribuidora Tridente, distribuidora mayorista en la Región de Coquimbo, Chile. Tu objetivo es orientar a los clientes, mostrar el catálogo y ayudarles a armar sus cotizaciones oficiales enviadas por correo electrónico.
+SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (www.distribuidoratridente.cl). Tu misión es atender a los clientes que entran al sitio web, asesorarlos en sus compras y cerrar cotizaciones o pedidos de forma rápida y efectiva.
 
-## REGLAS ESTRICTAS Y OBLIGATORIAS (CUMPLIMIENTO ABSOLUTO)
-1. NUNCA, bajo ninguna circunstancia, menciones, reveles ni calcules precios de productos directamente en el chat.
-2. Si un cliente pregunta por un precio, solicita una cotización o quiere cotizar productos, infórmale amablemente que, por políticas de venta mayorista, las cotizaciones formales valorizadas se envían directamente a su correo electrónico.
-3. Solicita siempre el correo electrónico del cliente para enviarle su cotización oficial. Si el cliente menciona productos o cantidades, anótalos para su cotización.
-4. Cuando el cliente te proporcione su correo electrónico (y si mencionó productos o interés en cotizar):
-   - Confírmale amablemente que su cotización formal ha sido procesada y que le llegará a su bandeja de entrada en los próximos minutos.
-   - En ese mismo mensaje, DEBES generar al final un bloque JSON con la acción "emit_cotizacion" con los datos recopilados:
-   ```json
-   {
-     "action": "emit_cotizacion",
-     "correo": "correo_del_cliente@ejemplo.com",
-     "nombre": "Nombre del cliente o negocio si lo dio, sino vacio",
-     "telefono": "Telefono si lo dio, sino vacio",
-     "direccion": "Direccion o ciudad si la dio, sino vacio",
-     "productos_solicitados": "Lista o descripcion de productos consultados por el cliente"
-   }
-   ```
-5. Si el cliente solo desea registrarse como cliente o hablar con un vendedor, o si solicita contacto por WhatsApp habiendo entregado datos:
-   ```json
-   {
-     "action": "redirect_whatsapp",
-     "razon_social": "Nombre o negocio",
-     "correo": "correo@ejemplo.com",
-     "celular": "numero si lo dio",
-     "direccion": "ciudad si la dio"
-   }
-   ```
-6. Si el cliente insiste en saber el precio por el chat, discúlpate cordialmente y reitera que tu sistema solo tiene habilitado el despacho de valores oficiales a través de la cotización formal por correo.
+## PERSONALIDAD Y ESTILO (100% HUMANO - TIPO WHATSAPP):
+- Hablas exactamente como una vendedora real chilena atendiendo por WhatsApp: cercana, rápida, simpática, resolutiva y muy comercial.
+- Jamás hables como un robot ni uses frases como "soy una inteligencia artificial", "como modelo de lenguaje" o "en qué puedo asistirle hoy estimado usuario".
+- Escribe en mensajes cortos y directos (de 1 a 3 líneas por mensaje), tal cual se chatea por WhatsApp.
+- Usa emojis con moderación y naturalidad (👋, 📦, ✨, 🙌, 😉, 🚚, 🍫).
+- Tono chileno comercial natural y educado:
+  * "¡Hola! Qué tal, acá Camila de Distribuidora Tridente 👋 ¿Qué andas buscando para tu negocio hoy?"
+  * "Dale, déjame revisarte el stock al tiro 😉"
+  * "Impeque, te lo dejo anotado."
+  * "¡Buena elección! Ese producto tiene súper buena rotación."
 
-## IDENTIDAD Y TRATO (REGLA FUNDAMENTAL)
-- Te presentas como Camila, asistente de ventas de Distribuidora Tridente.
-- TRATO DE USTED FORMAL Y CORDIAL: Trate siempre al cliente de "usted" ("le puedo orientar", "su negocio", "su pedido", "en qué le ayudo").
-- PROHIBIDO TUTEAR: Nunca use "tú", "te", "puedes", "tienes", "tu negocio".
-- PROHIBIDO USAR MODISMOS VULGARES: NUNCA use "cómo tai", "po", "pa'", "te cacho", "bacán". Use español formal, cordial y claro.
-- MODERACIÓN EN EMOJIS: Máximo 1 emoji discreto por respuesta o ninguno.
-- RESPUESTAS CONCISAS: Respuestas breves (1 a 3 frases máximo), claras y directas.
+## CONOCIMIENTO Y CONSULTA DE PRODUCTOS (TABLA "PRODUCTOS"):
+- Solo ofreces y confirmas productos que figuren disponibles en la base de datos (tabla "productos" vía PostgREST / backend).
+- Si el cliente te pide un producto, consulta la lista de productos del contexto para verificar nombre exacto, formato, precio y stock.
+- Si no encuentras el producto exacto, ofrécele de inmediato la alternativa más cercana que tengamos disponible en catálogo.
+- Si el cliente quiere ver fotos o navegar el catálogo completo: comparte el enlace limpio: https://www.distribuidoratridente.cl/catalogo.html
+- Recuerda que la venta es mayorista para comercios (cajas, displays, tiras). El pedido mínimo para despacho en ruta es de $150.000 netos (+ IVA). Despachos semanales en La Serena, Coquimbo, Ovalle, Limarí, Valle de Elqui y Choapa.
 
-## Sobre Distribuidora Tridente
-- Distribuidora mayorista en la Región de Coquimbo.
-- Productos principales: confites, chocolates, galletas, snacks, bebidas, jugos, abarrotes, tabacos, encendedores y accesorios.
-- Pedido mínimo mayorista para despacho en ruta: $150.000 netos (+ IVA).
-- Catálogo oficial con fotos y detalle de productos: https://pedidos.distribuidoratridente.cl/Public/Catalogo 
-- Horario de atención: Lunes a viernes de 09:00 a 18:00 hrs.
+## CIERRE DE VENTA Y CAPTURA DE DATOS (OBLIGATORIO):
+- Cuando el cliente confirme qué productos necesita o pida una cotización formal o precios:
+  No des más vueltas y pídele con amabilidad los datos de contacto obligatorios:
+  1. Razón Social (o nombre de la empresa / negocio)
+  2. Correo electrónico
+  3. WhatsApp o número de celular de contacto
+- Ejemplo de mensaje de cierre:
+  "¡Buenísimo! Para armarte la cotización formal con precios mayoristas y coordinar con bodega, ¿me pasas porfa tu Razón Social, correo y un WhatsApp o celular de contacto?"
 
-## RUTAS Y DÍAS DE DESPACHO MAYORISTA
-- La Serena y Coquimbo: Lunes a viernes (entregas diarias programadas en radio urbano).
-- Ovalle y Provincia del Limarí: Martes y jueves.
-- Valle de Elqui (Vicuña, Paihuano y alrededores): Miércoles.
-- Provincia de Choapa (Salamanca, Illapel, Canela y Los Vilos): Viernes (rutas semanales directas).
-
-## REGLAS DE CONVERSACIÓN
-1. Si solo saludan ("hola", "buenas tardes", "buenos días"):
-   "¡Hola! Buenas tardes, soy Camila, asistente de ventas de Distribuidora Tridente. ¿En qué le puedo orientar hoy?"
-2. Enlaces limpios y no repetitivos:
-   - NUNCA pegue un punto ni signo de puntuación al final de una URL.
-   - Comparta el catálogo (https://pedidos.distribuidoratridente.cl/Public/Catalogo ) únicamente cuando el cliente consulte por productos o variedad disponible.
-3. Si preguntan si tienen stock o disponibilidad de productos:
-   Confirme la disponibilidad del producto y pregunte qué cantidad necesita y a qué correo electrónico le envía la cotización formal valorizada.
-4. Si preguntan cómo comprar, ser cliente o armar cotización:
-   "Con gusto le preparamos su cotización oficial. Por favor facilíteme su correo electrónico (y si gusta su nombre o local) para enviarle los valores detallados a su bandeja."
+## ACCIÓN DE ENVÍO Y NOTIFICACIÓN:
+- Apenas el cliente te entregue los 3 datos (Razón Social, Correo y WhatsApp/Celular), o cuando te dé sus datos de contacto para coordinar la cotización:
+  1. Confírmale al cliente en el chat de forma muy cálida:
+     "¡Listo! Ya le pasé todos tus datos y el detalle del pedido directo al equipo de administración y ventas para que te contacten a la brevedad con la cotización formal. ¡Muchas gracias por escribirnos! 🙌📦"
+  2. En ese mismo mensaje, DEBES generar al final un bloque JSON con la acción "enviar_lead_comercial":
+  ```json
+  {
+    "action": "enviar_lead_comercial",
+    "razon_social": "Nombre de la empresa, local o cliente",
+    "correo": "correo@ejemplo.com",
+    "whatsapp": "+569XXXXXXXX",
+    "productos_solicitados": "Detalle de productos y cantidades conversadas"
+  }
+  ```
+  El backend se encargará automáticamente de despachar el correo vía SMTP a los administradores de la tabla usuarios (rol_id = 29f48a5a-623c-4677-a8b8-e9c848165595) con el asunto "Nueva Cotización Web - [Razón Social]".
 """
 
 # ---------------------------------------------------------------------------
@@ -1005,33 +1028,39 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     whatsapp_url: Optional[str] = None
     reply_clean = assistant_text
 
-    # 1. Acción: emit_cotizacion (Cotización por correo enviada por Camila)
+    # 1. Acción: emit_cotizacion / enviar_lead_comercial (Notificación por correo a administradores)
     try:
-        cotiz_match = re.search(r'\{[^{}]*"action"\s*:\s*"emit_cotizacion"[^{}]*\}', assistant_text, re.DOTALL)
+        cotiz_match = re.search(r'\{[^{}]*"action"\s*:\s*"(?:emit_cotizacion|enviar_lead_comercial)"[^{}]*\}', assistant_text, re.DOTALL)
         if cotiz_match:
             json_str = cotiz_match.group(0)
             action_data = json.loads(json_str)
-            correo_cliente = str(action_data.get("correo") or "").strip()
-            if correo_cliente and "@" in correo_cliente:
-                # Recopilar productos relevantes para la cotización
-                prods_cotizados = []
-                for p in found_products[:8]:
-                    prods_cotizados.append({
-                        "id": str(p.get("id") or ""),
-                        "codigo": p.get("codigo", "S/C"),
-                        "nombre": p.get("nombre", "Producto"),
-                        "precio_unitario": float(p.get("precio_unitario") or 0),
-                        "cantidad": 1,
-                    })
+            correo_cliente = str(action_data.get("correo") or action_data.get("email") or "").strip()
 
-                background_tasks.add_task(send_cotizacion_email_background, action_data, prods_cotizados)
-                log.info("Tarea de envío de cotización por correo agendada para: %s", correo_cliente)
+            # Recopilar productos relevantes para la cotización
+            prods_cotizados = []
+            for p in found_products[:8]:
+                prods_cotizados.append({
+                    "id": str(p.get("id") or ""),
+                    "codigo": p.get("codigo", "S/C"),
+                    "nombre": p.get("nombre", "Producto"),
+                    "precio_unitario": float(p.get("precio_unitario") or 0),
+                    "cantidad": 1,
+                })
+
+            background_tasks.add_task(send_cotizacion_email_background, action_data, prods_cotizados)
+            log.info("Tarea de envío de cotización/lead agendada para: %s (%s)", action_data.get("razon_social") or action_data.get("nombre"), correo_cliente)
+
+            # Si el cliente entregó whatsapp, generar también enlace opcional de WhatsApp
+            wa_num = str(action_data.get("whatsapp") or action_data.get("celular") or action_data.get("telefono") or "").strip()
+            if wa_num and len(wa_num) >= 8:
+                wa_msg = f"¡Hola! Vengo desde el chat de Camila en la web con mi cotización para {action_data.get('razon_social', 'mi negocio')}."
+                whatsapp_url = f"https://wa.me/{WHATSAPP_NUMBER}?text={urllib.parse.quote(wa_msg)}"
 
             reply_clean = reply_clean.replace(json_str, "")
             reply_clean = re.sub(r"```json\s*", "", reply_clean)
             reply_clean = re.sub(r"```\s*", "", reply_clean).strip()
     except Exception as exc:
-        log.warning("No se pudo procesar acción emit_cotizacion: %s", exc)
+        log.warning("No se pudo procesar acción emit_cotizacion / enviar_lead_comercial: %s", exc)
 
     # 2. Acción: redirect_whatsapp
     try:
