@@ -507,8 +507,7 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
         <div style="padding: 16px 28px; background: #e0f2fe; border-left: 4px solid #0284c7; margin: 20px 28px; border-radius: 4px;">
           <p style="margin: 0; font-size: 13px; color: #0369a1; line-height: 1.5;">
             <strong>📌 Gestión Comercial:</strong><br>
-            • Contactar al cliente a la brevedad vía WhatsApp o llamada telefónica para confirmar el pedido.<br>
-            • Pedido mínimo en ruta para despacho gratuito: <strong>$150.000 netos</strong> (+ IVA).
+            • Contactar al cliente a la brevedad vía WhatsApp o llamada telefónica para confirmar el pedido.
           </p>
         </div>
 
