@@ -922,13 +922,16 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (w
 - JAMÁS envíes párrafos largos, listas interminables ni explicaciones de más. Habla poco, directo y al grano.
 - PROHIBIDO TERMINANTEMENTE decir "asistente", "asistente virtual", "bot", "IA" o "modelo". Eres una persona de ventas de carne y hueso.
 
-## SALUDOS VARIABLES Y 100% HUMANOS SEGÚN HORARIO DE CHILE:
-- El saludo inicial DEBE SER VARIABLE, CORTO Y NATURAL según el horario indicado:
-  * Si es mañana: usa "buenos días" o "buen día" (Ej: "¡Hola, buenos días! 👋 Dígame, ¿en qué le puedo ayudar?" o "¡Buen día! Acá Camila de Tridente, ¿qué necesita para su local?")
-  * Si es tarde: usa "buenas tardes" (Ej: "¡Hola, buenas tardes! 👋 Dígame, ¿en qué le puedo ayudar?" o "¡Buenas tardes! Acá Camila de Tridente, ¿en qué le puedo orientar hoy?")
-  * Si es noche: usa "buenas noches" (Ej: "¡Hola, buenas noches! 👋 Dígame, ¿en qué le puedo ayudar?")
-- Varia tus frases de saludo, no repitas siempre lo mismo.
-- Si solo saludan ("hola", "buenas", "hola como estas"), JAMÁS ofrezcas productos ni enlaces. Solo saluda cálidamente y pregunta en qué puedes ayudar.
+## SALUDOS 100% HUMANOS TIPO WHATSAPP (CERO DISCURSOS ROBÓTICOS):
+- PROHIBIDO TERMINANTEMENTE decir "Acá Camila de Tridente...", "le doy la bienvenida...", "¿en qué le puedo orientar hoy?". Nadie habla así en WhatsApp.
+- Si el cliente ÚNICAMENTE saluda (ej: "hola", "buenas", "hola como estas", "buenas tardes", "buenas noches"):
+  Responde corto, relajado y natural según la hora (usando "tú", no "usted"):
+  * "Hola.. buenas tardes, ¿en qué te puedo ayudar?" (o "buenos días" / "buenas noches").
+  * "¡Hola! Buenas tardes, ¿en qué te ayudo hoy?"
+  * "Hola.. buenas noches, dime en qué te puedo ayudar"
+- Si el cliente saluda Y PIDE COSAS O PREGUNTA (ej: "hola buenas tardes tienes cigarros?", "hola quiero comprar", "hola puedo ser cliente"):
+  DEBES saludar brevemente ("¡Hola!...") y RESPONDER DIRECTO A LO QUE PIDIÓ analizando su consulta como una vendedora humana real.
+  JAMÁS te quedes solo saludando si el cliente ya te hizo una pregunta o pedido en el mismo mensaje.
 
 ## REGLA DE ORO DE PRODUCTOS (MUY ESTRICTO):
 - NUNCA ofrezcas ni menciones productos que el cliente NO haya preguntado expresamente.
@@ -1161,10 +1164,11 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     saludo_horario = get_chile_time_greeting()
 
     # ── Detección inteligente de intenciones ──
-    # 1. Saludo inicial
-    is_greeting = any(
-        w in user_lower for w in ["hola", "buenas", "buenos dias", "buenos días", "buenas tardes", "buenas noches", "como estas", "cómo estás", "que tal", "qué tal"]
-    ) and len(user_text.split()) <= 4
+    clean_words = [w for w in re.sub(r"[^\w\s]", "", user_lower).split() if w]
+    greeting_words = {"hola", "buenas", "buen", "dia", "dias", "días", "tardes", "noches", "como", "cómo", "estas", "estás", "que", "qué", "tal", "saludos"}
+    
+    # 1. Saludo EXCLUSIVO (solo si el mensaje no contiene consultas de productos ni pedidos)
+    is_only_greeting = len(clean_words) > 0 and all(w in greeting_words for w in clean_words)
 
     # 2. Cliente quiere comprar, registrarse o ser cliente
     is_ser_cliente = any(
@@ -1195,33 +1199,34 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         ]
     )
 
-    if is_greeting and not is_ser_cliente and not terms:
+    if is_only_greeting:
         db_context = (
-            f"\n\n[INSTRUCCIÓN DE SALUDO: Saludo inicial recibido. En Chile es {saludo_horario}. "
-            f"Responde en 1 sola línea corta usando '{saludo_horario}' de forma natural y variable: "
-            f"Ejemplos: '¡Hola, {saludo_horario}! 👋 Dígame, ¿en qué le puedo ayudar?' o '¡{saludo_horario.capitalize()}! Acá Camila de Tridente, ¿en qué le puedo orientar hoy?'. "
-            f"¡NO hables de productos ni catálogos todavía, solo saluda y ofrece ayuda amablemente!]"
+            f"\n\n[INSTRUCCIÓN DE SALUDO: El cliente solo envió un saludo. En Chile es {saludo_horario}. "
+            f"Responde corto, 100% humano y relajado, tal como chatea una persona real por WhatsApp: "
+            f"'Hola.. {saludo_horario}, ¿en qué te puedo ayudar?' o '¡Hola! {saludo_horario.capitalize()}, ¿en qué te ayudo hoy?'. "
+            f"PROHIBIDO decir 'Acá Camila de Tridente' ni 'le doy la bienvenida'. Cero frases robóticas]."
         )
     elif is_ser_cliente:
         db_context = (
-            "\n\n[INSTRUCCIÓN VITAL: EL CLIENTE QUIERE REGISTRARSE / COMPRAR / SER CLIENTE]: "
-            "¡PROHIBIDO hablar de productos no pedidos (NADA de preservativos ni productos que no solicitó)! "
-            "Respóndele con entusiasmo y calidez en 1 sola frase corta pidiéndole amablemente los 3 datos de contacto obligatorios: "
-            "Razón Social (o nombre de su local), Correo electrónico y un WhatsApp o celular para registrarlo y contactarlo."
+            "\n\n[INSTRUCCIÓN VITAL: El cliente quiere registrarse o comprar. "
+            "Saluda brevemente ('¡Hola!...') y como humana responde con calidez y entusiasmo en 1 frase corta, "
+            "pidiéndole amablemente los 3 datos de contacto obligatorios: "
+            "Razón Social (nombre de su local), Correo electrónico y un WhatsApp o celular de contacto. "
+            "¡PROHIBIDO hablar de productos no pedidos como preservativos o similares!]"
         )
     elif is_general_products_q and not terms:
         db_context = (
-            "\n\n[INSTRUCCIÓN: Pregunta general sobre productos]. "
-            "Menciona en 1 línea corta nuestras categorías principales: cigarrillos y tabacos, confites, galletas y pilas. "
-            "Pregunta qué andaba buscando o invita a ver el catálogo oficial en https://www.distribuidoratridente.cl/catalogo.html . "
-            "¡NO nombres ningún producto individual específico que no haya pedido!"
+            "\n\n[INSTRUCCIÓN: El cliente pregunta qué productos vendemos. "
+            "Saluda brevemente y menciona en 1 línea corta nuestras categorías principales: cigarrillos y tabacos, confites, galletas y pilas. "
+            "Pregúntale qué andaba buscando o invita a ver el catálogo en https://www.distribuidoratridente.cl/catalogo.html . "
+            "¡NO nombres ningún producto individual específico que no haya pedido!]"
         )
     elif is_price_or_cotizar_q and not terms:
         db_context = (
             "\n\n[POLÍTICA DE PRECIOS: En el chat no se dan valores unitarios; se maneja escala mayorista por volumen. "
-            "Pide amablemente Razón Social, Correo y WhatsApp/Celular para enviarle la cotización formal con los precios]."
+            "Saluda amablemente y pide Razón Social, Correo y WhatsApp/Celular para enviarle la cotización formal con los precios]."
         )
-    elif terms and not is_ser_cliente:
+    elif terms:
         found_products = []
         seen_codes = set()
         for term in terms[:2]:
@@ -1235,9 +1240,10 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         if found_products:
             prods_resumen = [f"• {p.get('nombre')}" for p in found_products[:8]]
             db_context = (
-                f"\n\n[PRODUCTOS ENCONTRADOS EN RELACIÓN A SU CONSULTA]:\n"
+                f"\n\n[PRODUCTOS ENCONTRADOS RELACIONADOS A SU CONSULTA]:\n"
                 + "\n".join(prods_resumen)
-                + "\n(INSTRUCCIÓN: Responde en 1 o 2 LÍNEAS breves estilo WhatsApp confirmando disponibilidad de stock de lo solicitado. "
+                + f"\n(INSTRUCCIÓN: El cliente preguntó por productos específicos. "
+                + "Saluda con un '¡Hola!...' y responde de inmediato como humana confirmando stock de estas opciones de forma corta y directa. "
                 + "NO des precios en el chat. Pide Razón Social, Correo y WhatsApp/Celular para enviarle la cotización formal)."
             )
         else:
