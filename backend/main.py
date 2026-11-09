@@ -79,7 +79,7 @@ def generate_with_fallback(contents: list, system_instruction: str) -> str:
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     temperature=0.3,
-                    max_output_tokens=150,
+                    max_output_tokens=280,
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
@@ -250,9 +250,13 @@ def get_all_categorias() -> list[str]:
 def get_smtp_config():
     """Obtiene la configuración de SMTP desde variables de entorno o desde bdtridente.system_settings."""
     env_host = os.environ.get("SMTP_HOST")
+    if env_host == "s550.v2nets.com":
+        env_host = "s560.v2nets.com"
     env_port = int(os.environ.get("SMTP_PORT", 465))
     env_user = os.environ.get("SMTP_USERNAME") or os.environ.get("SMTP_USER")
     env_pass = os.environ.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASS")
+    if env_pass in ["tu_password_smtp_aqui", ""]:
+        env_pass = None
     env_from = os.environ.get("SMTP_FROM_EMAIL") or env_user
     env_name = os.environ.get("SMTP_FROM_NAME") or "Distribuidora Tridente"
 
@@ -266,19 +270,19 @@ def get_smtp_config():
             "from_name": env_name,
         }
 
-    # Si falta algún parámetro (por ejemplo la contraseña en .env), consultar la tabla system_settings de PostgreSQL
+    # Si falta la contraseña en .env, consultar la tabla system_settings de PostgreSQL
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute(f"SELECT smtp_host, smtp_port, smtp_username, smtp_password, smtp_from_email, smtp_from_name FROM {DB_SCHEMA}.system_settings LIMIT 1")
                 row = cur.fetchone()
                 if row:
-                    host = env_host or row[0]
-                    port = env_port or row[1] or 465
-                    user = env_user or row[2]
-                    password = env_pass or row[3]
-                    from_email = env_from or row[4] or user
-                    from_name = env_name or row[5] or "Distribuidora Tridente"
+                    host = row[0] or env_host or "s560.v2nets.com"
+                    port = row[1] or env_port or 465
+                    user = row[2] or env_user or "pedidos@correotridente.cl"
+                    password = row[3] or env_pass
+                    from_email = row[4] or env_from or user
+                    from_name = row[5] or env_name or "Distribuidora Tridente"
                     if host and user and password:
                         return {
                             "host": host,
@@ -319,12 +323,58 @@ def get_admin_recipients():
         log.warning("No se pudo obtener destinatarios administradores de BD: %s", exc)
     return recipients
 
-def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio: str) -> str:
+def format_conversation_transcript(history: list) -> str:
+    """Formatea la conversación completa en texto plano con el formato solicitado:
+    Cliente: hola
+    Camila: Hola
+    """
+    lines = []
+    for item in history:
+        role = getattr(item, "role", "")
+        parts = getattr(item, "parts", [])
+        text = ""
+        for p in parts:
+            t = getattr(p, "text", "")
+            if t:
+                # Limpiar cualquier bloque JSON interno o instrucciones técnicas
+                t_clean = re.sub(r"```json.*?```", "", t, flags=re.DOTALL)
+                t_clean = re.sub(r'\{[^{}]*"action"\s*:\s*"[^"]*"[^{}]*\}', "", t_clean, flags=re.DOTALL)
+                t_clean = re.sub(r"\[(?:DATOS|INSTRUCCIÓN|POLÍTICA|Horario|PRODUCTOS|CONTEXTO).*?\]", "", t_clean, flags=re.DOTALL).strip()
+                if t_clean:
+                    text = t_clean
+        if not text:
+            continue
+        if role == "user":
+            lines.append(f"Cliente: {text}")
+        elif role == "model":
+            lines.append(f"Camila: {text}")
+    return "\n".join(lines)
+
+def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio: str, transcript_text: str = "") -> str:
     """Genera una plantilla HTML elegante para la cotización enviada por Camila."""
-    nombre = cliente_data.get("nombre") or "Estimado/a Cliente"
-    telefono = cliente_data.get("telefono") or "No indicado"
-    direccion = cliente_data.get("direccion") or "Región de Coquimbo"
-    correo = cliente_data.get("correo") or ""
+    razon_social = (
+        cliente_data.get("razon_social")
+        or cliente_data.get("nombre")
+        or cliente_data.get("empresa")
+        or "Cliente Web"
+    ).strip()
+    whatsapp = (
+        cliente_data.get("whatsapp")
+        or cliente_data.get("celular")
+        or cliente_data.get("telefono")
+        or "No indicado"
+    ).strip()
+    correo = (
+        cliente_data.get("correo")
+        or cliente_data.get("email")
+        or "No indicado"
+    ).strip()
+    pedido = (
+        cliente_data.get("productos_solicitados")
+        or cliente_data.get("pedido")
+        or "Registro de nuevo cliente mayorista / Consulta de productos en catálogo"
+    ).strip()
+    direccion = (cliente_data.get("direccion") or "Región de Coquimbo").strip()
     fecha_hoy = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
     filas_html = ""
@@ -347,10 +397,10 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
             </tr>
             """.replace(",", ".")
     else:
-        filas_html = """
+        filas_html = f"""
         <tr>
-            <td colspan="5" style="padding: 16px; text-align: center; color: #64748b; font-size: 14px;">
-                Cotización general con lista de precios y catálogo mayorista adjunto.
+            <td colspan="5" style="padding: 16px; text-align: left; color: #1e293b; font-size: 14px; line-height: 1.5;">
+                <strong>Detalle informado en la conversación:</strong><br>{pedido}
             </td>
         </tr>
         """
@@ -377,6 +427,17 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
         </table>
         """.replace(",", ".")
 
+    # Sección de historial de conversación
+    transcripcion_html = ""
+    if transcript_text:
+        transcripcion_html = f"""
+        <!-- Historial Completo de Conversación -->
+        <div style="padding: 20px 28px; background: #f8fafc; border-top: 2px solid #e2e8f0;">
+          <h3 style="margin: 0 0 10px; font-size: 15px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Historial Completo de la Conversación</h3>
+          <pre style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px 20px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 13px; line-height: 1.7; color: #1e293b; white-space: pre-wrap; margin: 0;">{transcript_text}</pre>
+        </div>
+        """
+
     html = f"""
     <!DOCTYPE html>
     <html lang="es">
@@ -387,7 +448,7 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #091e3a 0%, #0284c7 100%); padding: 24px 28px; color: #ffffff;">
           <h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">Distribuidora Tridente</h1>
-          <p style="margin: 4px 0 0; font-size: 14px; opacity: 0.9;">Cotización Mayorista Oficial • Emitida por Camila</p>
+          <p style="margin: 4px 0 0; font-size: 14px; opacity: 0.9;">Nueva Cotización / Solicitud Web • Camila Ventas</p>
         </div>
 
         <!-- Info Folio -->
@@ -395,11 +456,11 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
           <table style="width: 100%;">
             <tr>
               <td>
-                <span style="font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: 700;">Folio Cotización</span><br>
+                <span style="font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: 700;">Folio</span><br>
                 <strong style="font-size: 18px; color: #0f172a;">{folio}</strong>
               </td>
               <td style="text-align: right;">
-                <span style="font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: 700;">Fecha de Emisión</span><br>
+                <span style="font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: 700;">Fecha de Solicitud</span><br>
                 <span style="font-size: 14px; color: #334155;">{fecha_hoy}</span>
               </td>
             </tr>
@@ -408,23 +469,24 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
 
         <!-- Datos Cliente -->
         <div style="padding: 20px 28px;">
-          <h3 style="margin: 0 0 12px; font-size: 15px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Datos del Solicitante</h3>
-          <table style="width: 100%; font-size: 14px; color: #334155;">
-            <tr><td style="padding: 4px 0; width: 140px; color: #64748b;">Razón Social / Nombre:</td><td style="font-weight: 600; color: #0f172a;">{nombre}</td></tr>
-            <tr><td style="padding: 4px 0; color: #64748b;">Correo Electrónico:</td><td><a href="mailto:{correo}" style="color: #0284c7;">{correo}</a></td></tr>
-            <tr><td style="padding: 4px 0; color: #64748b;">Teléfono / Celular:</td><td>{telefono}</td></tr>
-            <tr><td style="padding: 4px 0; color: #64748b;">Dirección / Sector:</td><td>{direccion}</td></tr>
+          <h3 style="margin: 0 0 12px; font-size: 15px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Datos del Contacto / Negocio</h3>
+          <table style="width: 100%; font-size: 14px; color: #334155; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; width: 180px; color: #64748b; font-weight: 600;">Razón Social / Negocio:</td><td style="font-weight: 700; color: #0f172a; font-size: 16px;">{razon_social}</td></tr>
+            <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b; font-weight: 600;">WhatsApp / Celular:</td><td style="font-weight: 700; color: #16a34a; font-size: 15px;"><a href="tel:{whatsapp}" style="color: #16a34a; text-decoration: none;">{whatsapp}</a></td></tr>
+            <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b; font-weight: 600;">Correo Electrónico:</td><td style="font-weight: 600;"><a href="mailto:{correo}" style="color: #0284c7; text-decoration: none;">{correo}</a></td></tr>
+            <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 8px 0; color: #64748b; font-weight: 600; vertical-align: top;">Pedido / Solicitud:</td><td style="color: #0f172a; font-weight: 600; line-height: 1.5;">{pedido}</td></tr>
+            <tr><td style="padding: 8px 0; color: #64748b; font-weight: 600;">Zona / Cobertura:</td><td>{direccion}</td></tr>
           </table>
         </div>
 
         <!-- Tabla Productos -->
         <div style="padding: 10px 28px 24px;">
-          <h3 style="margin: 0 0 12px; font-size: 15px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Detalle de Productos Cotizados</h3>
+          <h3 style="margin: 0 0 12px; font-size: 15px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Detalle de Productos / Solicitud</h3>
           <table style="width: 100%; border-collapse: collapse; text-align: left;">
             <thead>
               <tr style="background: #f8fafc; border-bottom: 2px solid #cbd5e1;">
                 <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">#</th>
-                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">Producto</th>
+                <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">Producto / Requerimiento</th>
                 <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; text-align: center;">Cant.</th>
                 <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; text-align: right;">Precio Unit.</th>
                 <th style="padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; text-align: right;">Subtotal</th>
@@ -438,13 +500,15 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
           {totales_box}
         </div>
 
+        <!-- Transcripción de la conversación -->
+        {transcripcion_html}
+
         <!-- Banner Condiciones -->
-        <div style="padding: 16px 28px; background: #e0f2fe; border-left: 4px solid #0284c7; margin: 0 28px 20px; border-radius: 4px;">
+        <div style="padding: 16px 28px; background: #e0f2fe; border-left: 4px solid #0284c7; margin: 20px 28px; border-radius: 4px;">
           <p style="margin: 0; font-size: 13px; color: #0369a1; line-height: 1.5;">
-            <strong>📌 Condiciones Comerciales y Despacho:</strong><br>
-            • Validez de esta cotización: <strong>72 horas</strong> a partir de su emisión.<br>
-            • Pedido mínimo para despacho gratuito en ruta: <strong>$150.000 netos</strong> (+ IVA).<br>
-            • Para coordinar despacho o activar su pedido, responda a este correo o comuníquese con su vendedor asignado.
+            <strong>📌 Gestión Comercial:</strong><br>
+            • Contactar al cliente a la brevedad vía WhatsApp o llamada telefónica para confirmar el pedido.<br>
+            • Pedido mínimo en ruta para despacho gratuito: <strong>$150.000 netos</strong> (+ IVA).
           </p>
         </div>
 
@@ -461,22 +525,23 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
     """
     return html
 
-def send_cotizacion_email_background(cliente_data: dict, productos_lista: list):
-    """Tarea asíncrona para generar el folio, guardar en BD y enviar el correo con copia a ventas."""
+def send_cotizacion_email_background(cliente_data: dict, productos_lista: list, transcript_text: str = ""):
+    """Tarea asíncrona para generar el folio, guardar en BD y enviar el correo a los administradores."""
     smtp_cfg = get_smtp_config()
     if not smtp_cfg:
         log.error("No hay servidor SMTP configurado para enviar la cotización.")
         return
 
-    destinatario = (cliente_data.get("correo") or "").strip()
-    if not destinatario or "@" not in destinatario:
-        log.warning("Correo de cliente inválido: '%s'", destinatario)
-        return
+    destinatario = (cliente_data.get("correo") or cliente_data.get("email") or "").strip()
+    admin_recipients = get_admin_recipients()
 
-    # Generar folio único C-XXXXXX
     folio = f"C-{int(time.time()) % 1000000:06d}"
-    
-    # Calcular totales
+    razon_social = (cliente_data.get("razon_social") or cliente_data.get("nombre") or cliente_data.get("empresa") or "Cliente Web").strip()
+    whatsapp = (cliente_data.get("whatsapp") or cliente_data.get("celular") or cliente_data.get("telefono") or "No indicado").strip()
+    pedido = (cliente_data.get("productos_solicitados") or "Registro / cotización web").strip()
+    fecha_hoy = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    # Calcular totales si vienen productos estructurados
     subtotal_neto = sum(p.get("cantidad", 1) * p.get("precio_unitario", 0) for p in productos_lista)
     iva = int(round(subtotal_neto * 0.19))
     total = subtotal_neto + iva
@@ -495,12 +560,12 @@ def send_cotizacion_email_background(cliente_data: dict, productos_lista: list):
                     ) ON CONFLICT (folio) DO NOTHING RETURNING id;
                 """, (
                     folio,
-                    cliente_data.get("nombre") or "Cliente Web",
+                    razon_social,
                     cliente_data.get("rut") or "S/R",
-                    cliente_data.get("telefono") or "",
-                    destinatario,
-                    cliente_data.get("direccion") or "",
-                    f"Generada por Camila IA a través del chat web. Solicitud: {cliente_data.get('productos_solicitados', '')}",
+                    whatsapp,
+                    destinatario or "sin_correo@tridente.cl",
+                    cliente_data.get("direccion") or "Región de Coquimbo",
+                    f"Chat Camila. Solicitud: {pedido}. Transcripción: {transcript_text[:1000]}",
                     subtotal_neto,
                     iva,
                     total,
@@ -508,24 +573,43 @@ def send_cotizacion_email_background(cliente_data: dict, productos_lista: list):
                     json.dumps(productos_lista, ensure_ascii=False)
                 ))
             conn.commit()
-            log.info("✓ Cotización %s guardada en BD para %s", folio, destinatario)
+            log.info("✓ Cotización %s guardada en BD para %s (%s)", folio, razon_social, whatsapp)
     except Exception as exc:
         log.warning("No se pudo guardar la cotización en BD: %s", exc)
 
     # Preparar el correo
-    html_content = build_cotizacion_email_html(cliente_data, productos_lista, folio)
-    admin_recipients = get_admin_recipients()
+    html_content = build_cotizacion_email_html(cliente_data, productos_lista, folio, transcript_text)
+
+    plain_text = f"""Nueva Cotización Web - {razon_social}
+
+DATOS DEL CLIENTE / NEGOCIO:
+- Razón Social: {razon_social}
+- WhatsApp / Celular: {whatsapp}
+- Correo Electrónico: {destinatario or 'No indicado'}
+- Pedido / Solicitud: {pedido}
+- Fecha: {fecha_hoy}
+- Folio: {folio}
+
+============================================================
+HISTORIAL COMPLETO DE LA CONVERSACIÓN:
+============================================================
+{transcript_text}
+============================================================
+"""
 
     msg = EmailMessage()
-    razon_social = cliente_data.get("razon_social") or cliente_data.get("nombre") or "Cliente Web"
     msg["Subject"] = f"Nueva Cotización Web - {razon_social}"
     msg["From"] = f"{smtp_cfg['from_name']} <{smtp_cfg['from_email']}>"
+
+    # Enviar principalmente a los administradores
     if admin_recipients:
         msg["To"] = ", ".join(admin_recipients)
-        if destinatario and destinatario not in admin_recipients:
+        if destinatario and "@" in destinatario and destinatario not in admin_recipients:
             msg["Cc"] = destinatario
     else:
-        msg["To"] = destinatario
+        msg["To"] = destinatario if ("@" in destinatario) else smtp_cfg["username"]
+
+    msg.set_content(plain_text)
     msg.add_alternative(html_content, subtype="html")
 
     # Enviar correo vía SMTP SSL
@@ -533,9 +617,9 @@ def send_cotizacion_email_background(cliente_data: dict, productos_lista: list):
         with smtplib.SMTP_SSL(smtp_cfg["host"], smtp_cfg["port"], timeout=20) as server:
             server.login(smtp_cfg["username"], smtp_cfg["password"])
             server.send_message(msg)
-        log.info("📧 Cotización %s enviada con éxito a %s (Bcc: %s)", folio, destinatario, admin_recipients)
+        log.info("📧 Notificación enviada con éxito a administradores: %s (Cliente: %s, Razón Social: %s)", admin_recipients, destinatario, razon_social)
     except Exception as exc:
-        log.error("Error al enviar cotización por SMTP a %s: %s", destinatario, exc)
+        log.error("Error al enviar notificación por SMTP: %s", exc)
 
 
 def load_fallback_catalog() -> list[dict]:
@@ -1195,6 +1279,7 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     # ── Detectar acciones emit_cotizacion o redirect_whatsapp en la respuesta ──
     whatsapp_url: Optional[str] = None
     reply_clean = assistant_text
+    lead_agendado = False
 
     # 1. Acción: emit_cotizacion / enviar_lead_comercial (Notificación por correo a administradores)
     try:
@@ -1203,6 +1288,12 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             json_str = cotiz_match.group(0)
             action_data = json.loads(json_str)
             correo_cliente = str(action_data.get("correo") or action_data.get("email") or "").strip()
+
+            # Asegurar claves uniformes
+            if "razon_social" not in action_data and "nombre" in action_data:
+                action_data["razon_social"] = action_data["nombre"]
+            if "whatsapp" not in action_data and "celular" in action_data:
+                action_data["whatsapp"] = action_data["celular"]
 
             # Recopilar productos relevantes para la cotización
             prods_cotizados = []
@@ -1215,7 +1306,9 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
                     "cantidad": 1,
                 })
 
-            background_tasks.add_task(send_cotizacion_email_background, action_data, prods_cotizados)
+            transcript_text = format_conversation_transcript(sessions[sid])
+            background_tasks.add_task(send_cotizacion_email_background, action_data, prods_cotizados, transcript_text)
+            lead_agendado = True
             log.info("Tarea de envío de cotización/lead agendada para: %s (%s)", action_data.get("razon_social") or action_data.get("nombre"), correo_cliente)
 
             # Si el cliente entregó whatsapp, generar también enlace opcional de WhatsApp
@@ -1229,6 +1322,21 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             reply_clean = re.sub(r"```\s*", "", reply_clean).strip()
     except Exception as exc:
         log.warning("No se pudo procesar acción emit_cotizacion / enviar_lead_comercial: %s", exc)
+
+    # Respaldo automático si el cliente entregó datos de contacto y no se detectó acción JSON
+    if not lead_agendado:
+        email_m = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', user_text)
+        phone_m = re.search(r'(?:\+?56\s?)?9\s?\d{4}\s?\d{4}|\b\d{8,9}\b', user_text)
+        if email_m or (phone_m and len(sessions[sid]) >= 2):
+            fallback_data = {
+                "razon_social": user_text.split(",")[0].strip() if "," in user_text else "Contacto Web",
+                "correo": email_m.group(0) if email_m else "",
+                "whatsapp": phone_m.group(0) if phone_m else "",
+                "productos_solicitados": "Registro o cotización solicitada en chat"
+            }
+            transcript_text = format_conversation_transcript(sessions[sid])
+            background_tasks.add_task(send_cotizacion_email_background, fallback_data, found_products, transcript_text)
+            log.info("✓ Tarea de cotización agendada por captura de contacto fallback: %s", fallback_data)
 
     # 2. Acción: redirect_whatsapp
     try:
