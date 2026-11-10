@@ -927,16 +927,16 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (w
 - JAMÁS envíes párrafos largos, listas interminables ni explicaciones de más. Habla poco, directo y al grano.
 - PROHIBIDO TERMINANTEMENTE decir "asistente", "asistente virtual", "bot", "IA" o "modelo". Eres una persona de ventas de carne y hueso.
 
-## SALUDOS 100% HUMANOS TIPO WHATSAPP (CERO DISCURSOS ROBÓTICOS):
-- PROHIBIDO TERMINANTEMENTE decir "Acá Camila de Tridente...", "le doy la bienvenida...", "¿en qué le puedo orientar hoy?". Nadie habla así en WhatsApp.
-- Si el cliente ÚNICAMENTE saluda (ej: "hola", "buenas", "hola como estas", "buenas tardes", "buenas noches"):
+## REGLA DE SALUDO (SOLO 1 VEZ AL INICIO - PROHIBIDO SALUDAR EN CADA MENSAJE):
+- El saludo ("Hola..", "¡Hola! buenas tardes", etc.) se da EXCLUSIVAMENTE en el primer mensaje de la conversación.
+- EN TODAS LAS RESPUESTAS POSTERIORES, ESTÁ TERMINANTEMENTE PROHIBIDO VOLVER A DECIR "HOLA", "¡HOLA!" O SALUDAR DE NUEVO.
+  En WhatsApp nadie saluda en cada mensaje. Si la conversación ya está iniciada, ve DIRECTO a responder la consulta.
+- Si el cliente ÚNICAMENTE saluda al inicio (ej: "hola", "buenas", "hola como estas", "buenas tardes", "buenas noches"):
   Responde corto, relajado y natural según la hora (usando "tú", no "usted"):
   * "Hola.. buenas tardes, ¿en qué te puedo ayudar?" (o "buenos días" / "buenas noches").
   * "¡Hola! Buenas tardes, ¿en qué te ayudo hoy?"
-  * "Hola.. buenas noches, dime en qué te puedo ayudar"
-- Si el cliente saluda Y PIDE COSAS O PREGUNTA (ej: "hola buenas tardes tienes cigarros?", "hola quiero comprar", "hola puedo ser cliente"):
-  DEBES saludar brevemente ("¡Hola!...") y RESPONDER DIRECTO A LO QUE PIDIÓ analizando su consulta como una vendedora humana real.
-  JAMÁS te quedes solo saludando si el cliente ya te hizo una pregunta o pedido en el mismo mensaje.
+- Si el cliente en su primer mensaje saluda Y PIDE COSAS O PREGUNTA (ej: "hola buenas tardes tienes cigarros?"):
+  Saluda brevemente ("¡Hola!...") y responde de inmediato a lo que pidió.
 
 ## REGLA DE ORO DE PRODUCTOS (MUY ESTRICTO):
 - NUNCA ofrezcas ni menciones productos que el cliente NO haya preguntado expresamente.
@@ -944,7 +944,7 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (w
 - SI EL CLIENTE PREGUNTA POR CIGARROS, CIGARRILLOS O PUCHOS:
   PROHIBIDO TERMINANTEMENTE DECIR "PURITOS" U OFRECER PURITOS.
   Debes mostrar la lista y marcas reales de cigarrillos y tabaco: Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos, tabaco para enrolar y papelillos OCB.
-  Ejemplo: "¡Hola! Sí, tenemos cigarrillos (Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield) y tabacos para enrolar con papelillos OCB. ¿Qué marcas o cantidades necesitas?"
+  (Recuerda: si la conversación ya está en curso, NO digas "¡Hola!", ve directo a mostrar las opciones).
 - Si el cliente dice que quiere ser cliente, registrarse, comprar o consultar cómo comprar:
   NO nombres ningún producto. Respóndele pidiéndole los datos de esta manera exacta:
 Si Claro, mira para ser cliente o comprar, necesito estos datos
@@ -953,9 +953,12 @@ Correo:
 WhatsApp:
 
 ## CONSULTA DE PRODUCTOS ESPECÍFICOS:
-- Solo cuando el cliente pregunte expresamente por una categoría o producto (ej: "tienes cigarros?", "tienes galletas?"):
-  Confirma en 1 sola línea breve que sí tenemos stock y menciona las opciones reales.
+- Cuando el cliente pregunte por una marca o producto específico (ej: "¿qué tienes en kent?", "¿tienes galletas mckay?"):
+  Responde DIRECTAMENTE indicando las opciones y variedades que tenemos en stock (ej: "En Kent tenemos Kent 1 Blanco, Kent 4 Gris, Kent 8 Azul, Actron y Switch. ¿Cuáles te interesan?").
+  ¡NO agregues la plantilla de pedir datos (Razón Social, Correo, WhatsApp) en este momento! La plantilla solo se pide cuando el cliente pida precios/cotización, confirme cantidades o quiera comprar/ser cliente.
 - Si pregunta por cigarros o tabaco: NUNCA digas puritos; lista cigarrillos (Kent, Lucky Strike, Pall Mall, Marlboro, etc.) y tabaco para enrolar.
+- Si pregunta por un rubro que NO vendemos (como abarrotes, bebidas, pan, etc.):
+  Aclara directo sin decir hola: "No vendemos abarrotes, pero sí tenemos cigarrillos, confites, galletas y pilas. Puedes ver nuestro catálogo acá: https://www.distribuidoratridente.cl/catalogo.html"
 - SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Latinos, Captain Black, OCB, Clipper), confites y chocolates (Costa, Arcor, Ambrosoli), galletas (McKay) y pilas (Duracell, Eveready).
 - Si preguntan en general qué productos vendemos: responde en 1 línea con las categorías principales (cigarrillos, confites, galletas y pilas) e invita a ver el catálogo oficial en https://www.distribuidoratridente.cl/catalogo.html
 
@@ -967,9 +970,12 @@ Razón Social:
 Correo: 
 WhatsApp:
 
-## CIERRE DE VENTA Y CAPTURA DE DATOS (OBLIGATORIO):
-- Cuando el cliente confirme qué productos necesita, pida cotización o quiera ser cliente o comprar:
-  Debes pedir los datos exactamente en este formato:
+## CIERRE DE VENTA Y CAPTURA DE DATOS (CUÁNDO PEDIR LA PLANTILLA):
+- Pide los datos de contacto ÚNICAMENTE cuando:
+  1. El cliente diga explícitamente que quiere comprar, ser cliente o registrarse ("quiero comprar", "cómo compro", "quiero ser cliente").
+  2. El cliente pregunte por precios o pida cotizar ("cuánto vale", "precios", "cotizar").
+  3. El cliente indique qué productos y cantidades quiere cotizar ("quiero 10 cartones de Kent").
+- En esos casos, pide los datos exactamente en este formato:
 Si Claro, mira para ser cliente o comprar, necesito estos datos
 Razón Social:
 Correo: 
@@ -1218,34 +1224,42 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         ]
     )
 
+    is_first_turn = len(history) == 0
+
     if is_only_greeting:
-        db_context = (
-            f"\n\n[INSTRUCCIÓN DE SALUDO: El cliente solo envió un saludo. En Chile es {saludo_horario}. "
-            f"Responde corto, 100% humano y relajado, tal como chatea una persona real por WhatsApp: "
-            f"'Hola.. {saludo_horario}, ¿en qué te puedo ayudar?' o '¡Hola! {saludo_horario.capitalize()}, ¿en qué te ayudo hoy?'. "
-            f"PROHIBIDO decir 'Acá Camila de Tridente' ni 'le doy la bienvenida'. Cero frases robóticas]."
-        )
+        if is_first_turn:
+            db_context = (
+                f"\n\n[INSTRUCCIÓN DE SALUDO: Primer mensaje de la conversación. En Chile es {saludo_horario}. "
+                f"Responde corto, 100% humano y relajado, tal como chatea una persona real por WhatsApp: "
+                f"'Hola.. {saludo_horario}, ¿en qué te puedo ayudar?' o '¡Hola! {saludo_horario.capitalize()}, ¿en qué te ayudo hoy?'. "
+                f"PROHIBIDO decir 'Acá Camila de Tridente' ni 'le doy la bienvenida'. Cero frases robóticas]."
+            )
+        else:
+            db_context = "\n\n[CONVERSACIÓN EN CURSO: El cliente volvió a saludar. Responde corto y directo como humano en WhatsApp: 'Dime, ¿en qué te puedo ayudar?' (PROHIBIDO volver a decir '¡Hola! buenas tardes')]."
     elif is_ser_cliente:
         db_context = (
             "\n\n[INSTRUCCIÓN VITAL: El cliente quiere ser cliente o comprar. "
             "PROHIBIDO TERMINANTEMENTE ofrecer preservativos, puritos o productos no solicitados. "
-            "DEBES responder pidiendo los datos con esta plantilla exacta:\n"
+            + ("" if is_first_turn else "PROHIBIDO decir 'Hola'. ")
+            + "DEBES responder pidiendo los datos con esta plantilla exacta:\n"
             "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
             "Razón Social:\n"
             "Correo: \n"
             "WhatsApp:]"
         )
     elif is_general_products_q and not terms:
+        greeting_txt = "¡Hola! " if is_first_turn else ""
         db_context = (
-            "\n\n[INSTRUCCIÓN: El cliente pregunta qué productos vendemos. "
-            "Saluda brevemente y menciona en 1 línea corta nuestras categorías principales: cigarrillos y tabacos, confites, galletas y pilas. "
-            "Pregúntale qué andaba buscando o invita a ver el catálogo en https://www.distribuidoratridente.cl/catalogo.html . "
-            "¡NO nombres ningún producto individual específico que no haya pedido!]"
+            f"\n\n[INSTRUCCIÓN: El cliente pregunta qué productos vendemos. "
+            + ("" if is_first_turn else "PROHIBIDO decir 'Hola'. ")
+            + f"Responde en 1 línea corta: '{greeting_txt}Tenemos cigarrillos, tabacos, confites, galletas y pilas. Puedes revisar todo nuestro catálogo acá: https://www.distribuidoratridente.cl/catalogo.html'. "
+            f"¡NO nombres ningún producto individual específico que no haya pedido!]"
         )
     elif is_price_or_cotizar_q and not terms:
         db_context = (
             "\n\n[POLÍTICA DE PRECIOS: En el chat no se dan valores unitarios; se maneja escala mayorista por volumen. "
-            "Explica brevemente y pide los datos exactamente así:\n"
+            + ("" if is_first_turn else "PROHIBIDO decir 'Hola'. ")
+            + "Pide los datos exactamente así:\n"
             "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
             "Razón Social:\n"
             "Correo: \n"
@@ -1263,31 +1277,42 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
                     seen_codes.add(code)
                     found_products.append(r)
 
+        greeting_instruction = "Saluda brevemente ('¡Hola!...') y responde" if is_first_turn else "PROHIBIDO decir 'Hola' ni saludar de nuevo; responde DIRECTO"
+
+        # Detectar si el cliente está pidiendo cotización explícita o solo consultando qué hay
+        is_asking_varieties = any(p in user_lower for p in ["que tienes", "qué tienes", "cuales tienes", "cuáles tienes", "que marcas", "qué marcas", "que hay", "qué hay", "tienes", "variedades", "cuales hay", "cuáles hay"])
+        is_asking_quote = is_price_or_cotizar_q or is_ser_cliente or any(p in user_lower for p in ["cotizar", "cotizacion", "cotización", "precio", "precios", "comprar"])
+
         if found_products:
             prods_clean = [
                 p.get("nombre") for p in found_products
                 if "purito" not in str(p.get("nombre") or "").lower() or any("purito" in t for t in terms)
             ]
             prods_resumen = [f"• {nom}" for nom in prods_clean[:8]]
-            if is_tobacco_query:
+            
+            if is_tobacco_query and any(t in ["cigarro", "cigarros", "cigarrillo", "cigarrillos", "pucho", "puchos"] for t in terms):
                 instruccion = (
-                    "El cliente preguntó por cigarros o tabaco. PROHIBIDO DECIR 'puritos' o hablar de puritos. "
-                    "Saluda brevemente ('¡Hola!...') y confirma las marcas disponibles de cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, tabacos para enrolar y papelillos OCB). "
-                    "Pregunta qué cantidades busca o pide los datos así:\n"
-                    "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
-                    "Razón Social:\n"
-                    "Correo: \n"
-                    "WhatsApp:"
+                    f"{greeting_instruction}. PROHIBIDO DECIR 'puritos' o hablar de puritos. "
+                    "Muestra las marcas disponibles de cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos, tabacos para enrolar y papelillos OCB). "
+                    "Pregunta qué marcas o cantidades busca. "
+                    "¡NO pegues la plantilla de pedir datos todavía!"
+                )
+            elif is_asking_varieties or not is_asking_quote:
+                instruccion = (
+                    f"{greeting_instruction} confirmando stock de estas opciones de forma corta y directa en 1 línea. "
+                    "Pregunta cuál o qué cantidades le interesan. "
+                    "¡NO pegues la plantilla de pedir datos todavía; solo responde qué variedades tenemos!"
                 )
             else:
                 instruccion = (
-                    "Saluda con un '¡Hola!...' y responde de inmediato confirmando stock de estas opciones de forma corta y directa. "
-                    "NO des precios en el chat. Si quiere cotizar o comprar, pide los datos así:\n"
+                    f"{greeting_instruction} confirmando stock. "
+                    "Pide los datos de contacto con la plantilla exacta:\n"
                     "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
                     "Razón Social:\n"
                     "Correo: \n"
                     "WhatsApp:"
                 )
+
             db_context = (
                 f"\n\n[PRODUCTOS ENCONTRADOS RELACIONADOS A SU CONSULTA]:\n"
                 + "\n".join(prods_resumen)
@@ -1296,21 +1321,21 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         else:
             if is_tobacco_query:
                 db_context = (
-                    "\n\n[INSTRUCCIÓN CIGARROS/TABACO: SÍ vendemos cigarrillos (Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos) y tabacos para enrolar con papelillos OCB. "
-                    "¡JAMÁS digas puritos! Confirma estas marcas y pregunta qué cantidades busca o pide los datos así:\n"
-                    "Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
-                    "Razón Social:\n"
-                    "Correo: \n"
-                    "WhatsApp:]"
+                    f"\n\n[INSTRUCCIÓN CIGARROS/TABACO: {greeting_instruction}. "
+                    "SÍ vendemos cigarrillos (Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos) y tabacos para enrolar con papelillos OCB. "
+                    "¡JAMÁS digas puritos! Confirma estas marcas y pregunta qué cantidades busca]."
                 )
             else:
                 db_context = (
                     f"\n\n[DATOS: No se encontró producto idéntico para: '{', '.join(terms)}'. "
-                    f"SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Captain Black, OCB), confites (Costa, Arcor, Ambrosoli), galletas (McKay) y pilas. "
-                    f"Responde en 1 O 2 LÍNEAS ofreciendo estas opciones o ver https://www.distribuidoratridente.cl/catalogo.html ]."
+                    f"{greeting_instruction}. Si busca abarrotes o productos que no vendemos, aclara amablemente que no vendemos ese rubro pero sí cigarrillos, confites, galletas y pilas. "
+                    f"Responde en 1 O 2 LÍNEAS breves invitando a ver https://www.distribuidoratridente.cl/catalogo.html ]."
                 )
     else:
-        db_context = f"\n\n[Horario en Chile: {saludo_horario}. Responde en MÁXIMO 1 o 2 LÍNEAS breves, estilo WhatsApp 100% humano]."
+        if is_first_turn:
+            db_context = f"\n\n[Horario en Chile: {saludo_horario}. Saluda como humana y responde en MÁXIMO 1 o 2 LÍNEAS breves, estilo WhatsApp]."
+        else:
+            db_context = "\n\n[CONVERSACIÓN EN CURSO: PROHIBIDO decir 'Hola' ni saludar de nuevo. Responde DIRECTO en MÁXIMO 1 o 2 LÍNEAS breves, estilo WhatsApp]."
 
     # ── Construir historial para Gemini ──
     contents = list(history)
@@ -1326,6 +1351,17 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     except Exception as exc:
         log.error("Error al llamar a Gemini: %s", exc)
         raise HTTPException(status_code=502, detail=f"Error en servicio IA: {exc}")
+
+    if not is_first_turn:
+        # En conversaciones ya iniciadas, PROHIBIDO volver a decir "¡Hola!", "Hola buenas noches", etc.
+        assistant_text = re.sub(
+            r"^(¡?\s*(hola|buenas\s+(tardes|noches|d[ií]as)|buen\s+d[ií]a|qu[eé]\s+tal|c[oó]mo\s+est[aá]s)\s*!*[\s,\.]*)+",
+            "",
+            assistant_text,
+            flags=re.IGNORECASE
+        ).strip()
+        if assistant_text:
+            assistant_text = assistant_text[0].upper() + assistant_text[1:]
 
     # Guardar en historial de sesión
     sessions[sid].append(
