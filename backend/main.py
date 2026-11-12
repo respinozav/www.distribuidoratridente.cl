@@ -426,13 +426,24 @@ def send_whatsapp_notifications(cliente_data: dict, transcript_text: str = ""):
         now = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
     fecha_hora_cl = now.strftime("%d/%m/%Y %H:%M")
 
+    seccion_transcripcion = ""
+    if transcript_text and transcript_text.strip():
+        texto_t = transcript_text.strip()
+        if len(texto_t) > 3000:
+            texto_t = "...\n" + texto_t[-3000:]
+        seccion_transcripcion = (
+            f"\n\n💬 *Conversación completa:*\n"
+            f"```\n{texto_t}\n```"
+        )
+
     mensaje = (
         f"🤖 *NUEVO PROSPECTO / VENTA - CAMILA IA*\n"
         f"*Distribuidora Tridente*\n\n"
         f"🏢 *Razón Social / Cliente:* {razon_social}\n"
         f"📱 *WhatsApp:* {whatsapp_cl}\n"
         f"📧 *Correo:* {correo_cl}\n\n"
-        f"📝 *Detalle de la consulta / productos:*\n{pedido}\n\n"
+        f"📝 *Detalle de la consulta / productos:*\n{pedido}"
+        f"{seccion_transcripcion}\n\n"
         f"⏰ *Fecha y hora:* {fecha_hora_cl}"
     )
 
