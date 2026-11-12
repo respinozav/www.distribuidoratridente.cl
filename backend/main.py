@@ -15,6 +15,7 @@ import uuid
 import re
 import time
 import urllib.parse
+import urllib.request
 from contextlib import asynccontextmanager
 from typing import Optional
 from dotenv import load_dotenv
@@ -49,6 +50,13 @@ DB_SCHEMA       = os.environ.get("DATABASE_SCHEMA", "bdtridente")
 DB_USER         = os.environ.get("DATABASE_USER", "postgres")
 DB_PASSWORD     = os.environ.get("DATABASE_PASSWORD", "")
 WHATSAPP_NUMBER = os.environ.get("WHATSAPP_NUMBER", "56944488407")
+
+# ---------------------------------------------------------------------------
+# Evolution API — WhatsApp (compartido con pedidos.distribuidoratridente.cl)
+# ---------------------------------------------------------------------------
+EVOLUTION_API_URL           = os.environ.get("EVOLUTION_API_URL", "").rstrip("/")
+EVOLUTION_API_GLOBAL_KEY    = os.environ.get("EVOLUTION_API_GLOBAL_KEY", "")
+WHATSAPP_INSTANCE_NAME      = os.environ.get("WHATSAPP_INSTANCE_NAME", "tridente")
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get(
@@ -304,29 +312,159 @@ def get_smtp_config():
 ADMIN_ROL_ID = "29f48a5a-623c-4677-a8b8-e9c848165595"
 
 def get_admin_recipients():
-    """Obtiene los correos de los administradores con rol_id = 29f48a5a-623c-4677-a8b8-e9c848165595 para envío de leads y cotizaciones."""
+    """Obtiene los correos de administradores con rol_id = ADMIN_ROL_ID para envío de leads.
+    Mantiene compatibilidad hacia atrás: si no existe recibe_camila_email, retorna todos los admins.
+    """
     recipients = ["pedidos.tridente2026@gmail.com"]
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                # 1. Administradores con el rol_id especificado
-                cur.execute(f"SELECT correo FROM {DB_SCHEMA}.usuarios WHERE rol_id = %s AND correo IS NOT NULL", (ADMIN_ROL_ID,))
+                # Intentar con la nueva columna recibe_camila_email
+                try:
+                    cur.execute(
+                        f"SELECT correo FROM {DB_SCHEMA}.usuarios "
+                        f"WHERE rol_id = %s AND activo = true AND recibe_camila_email = true "
+                        f"AND correo IS NOT NULL",
+                        (ADMIN_ROL_ID,)
+                    )
+                except Exception:
+                    # Fallback: columna todavía no existe, usar todos los admins activos
+                    conn.rollback()
+                    cur.execute(
+                        f"SELECT correo FROM {DB_SCHEMA}.usuarios "
+                        f"WHERE rol_id = %s AND correo IS NOT NULL",
+                        (ADMIN_ROL_ID,)
+                    )
                 rows = cur.fetchall()
                 for r in rows:
                     correo = (r[0] or "").strip()
                     if correo and "@" in correo and correo not in recipients:
                         recipients.append(correo)
 
-                # 2. Fallback complementario: usuarios marcados con recibe_pedido = true
-                cur.execute(f"SELECT correo FROM {DB_SCHEMA}.usuarios WHERE recibe_pedido = true AND correo IS NOT NULL")
-                rows_pedidos = cur.fetchall()
-                for r in rows_pedidos:
-                    correo = (r[0] or "").strip()
-                    if correo and "@" in correo and correo not in recipients:
-                        recipients.append(correo)
+                # Fallback complementario: recibe_pedido = true
+                try:
+                    cur.execute(
+                        f"SELECT correo FROM {DB_SCHEMA}.usuarios "
+                        f"WHERE recibe_pedido = true AND activo = true AND correo IS NOT NULL"
+                    )
+                    for r in cur.fetchall():
+                        correo = (r[0] or "").strip()
+                        if correo and "@" in correo and correo not in recipients:
+                            recipients.append(correo)
+                except Exception:
+                    pass
     except Exception as exc:
         log.warning("No se pudo obtener destinatarios administradores de BD: %s", exc)
     return recipients
+
+
+def get_admin_whatsapp_recipients() -> list[dict]:
+    """Retorna lista de {celular, nombre} de administradores con recibe_camila_whatsapp=true."""
+    recipients = []
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    f"SELECT nombre, celular FROM {DB_SCHEMA}.usuarios "
+                    f"WHERE rol_id = %s AND activo = true "
+                    f"AND recibe_camila_whatsapp = true "
+                    f"AND celular IS NOT NULL AND celular <> ''",
+                    (ADMIN_ROL_ID,)
+                )
+                for r in cur.fetchall():
+                    celular = format_chile_phone(r["celular"] or "")
+                    if celular:
+                        recipients.append({"nombre": r.get("nombre") or "", "celular": celular})
+    except Exception as exc:
+        log.warning("No se pudo obtener destinatarios WhatsApp de BD: %s", exc)
+    return recipients
+
+
+def format_chile_phone(raw: str) -> str:
+    """Normaliza un número telefónico chileno al formato 569XXXXXXXX para Evolution API.
+    - Limpia espacios, guiones y caracteres no numéricos.
+    - 9 dígitos -> antepone '56'
+    - 8 dígitos -> antepone '569'
+    - 11+ dígitos comenzando con 56 -> usar tal cual
+    """
+    digits = re.sub(r"\D", "", raw)
+    if not digits:
+        return ""
+    # Quitar prefijo internacional si ya viene con 00 o +
+    if digits.startswith("00"):
+        digits = digits[2:]
+    if len(digits) == 9:          # ej: 912345678
+        return "56" + digits
+    if len(digits) == 8:          # ej: 12345678
+        return "569" + digits
+    if len(digits) >= 11 and digits.startswith("56"):
+        return digits[:11]        # mantener 56XXXXXXXXX
+    if len(digits) >= 10 and digits.startswith("9"):
+        return "56" + digits[:9]
+    return digits                 # devolver lo que venga
+
+
+def send_whatsapp_notifications(cliente_data: dict, transcript_text: str = ""):
+    """Envía notificación WhatsApp a todos los administradores con recibe_camila_whatsapp=true.
+    Usa Evolution API (POST /message/sendText/{instance}).
+    Falla silenciosamente si la API no está configurada o responde con error.
+    """
+    if not EVOLUTION_API_URL or not EVOLUTION_API_GLOBAL_KEY:
+        log.info("Evolution API no configurada — omitiendo envío WhatsApp de lead.")
+        return
+
+    razon_social  = (cliente_data.get("razon_social") or cliente_data.get("nombre") or "Cliente Web").strip()
+    whatsapp_cl   = (cliente_data.get("whatsapp") or cliente_data.get("celular") or "No indicado").strip()
+    correo_cl     = (cliente_data.get("correo") or cliente_data.get("email") or "No indicado").strip()
+    pedido        = (cliente_data.get("productos_solicitados") or "Registro / consulta web").strip()
+
+    try:
+        import zoneinfo
+        tz = zoneinfo.ZoneInfo("America/Santiago")
+        now = datetime.datetime.now(tz)
+    except Exception:
+        now = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+    fecha_hora_cl = now.strftime("%d/%m/%Y %H:%M")
+
+    mensaje = (
+        f"🤖 *NUEVO PROSPECTO / VENTA - CAMILA IA*\n"
+        f"*Distribuidora Tridente*\n\n"
+        f"🏢 *Razón Social / Cliente:* {razon_social}\n"
+        f"📱 *WhatsApp:* {whatsapp_cl}\n"
+        f"📧 *Correo:* {correo_cl}\n\n"
+        f"📝 *Detalle de la consulta / productos:*\n{pedido}\n\n"
+        f"⏰ *Fecha y hora:* {fecha_hora_cl}"
+    )
+
+    destinatarios = get_admin_whatsapp_recipients()
+    if not destinatarios:
+        log.info("No hay administradores con recibe_camila_whatsapp=true — omitiendo WhatsApp.")
+        return
+
+    endpoint = f"{EVOLUTION_API_URL}/message/sendText/{WHATSAPP_INSTANCE_NAME}"
+    headers  = {
+        "Content-Type": "application/json",
+        "apikey": EVOLUTION_API_GLOBAL_KEY,
+    }
+
+    for dest in destinatarios:
+        payload = json.dumps({
+            "number": dest["celular"],
+            "text":   mensaje,
+            "delay":  1200,
+        }).encode("utf-8")
+
+        try:
+            req = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                status = resp.getcode()
+                body   = resp.read().decode("utf-8", errors="replace")[:300]
+            if status in (200, 201):
+                log.info("📱 WhatsApp enviado a %s (%s): HTTP %s", dest["nombre"], dest["celular"], status)
+            else:
+                log.warning("📱 WhatsApp resp inesperada %s a %s: %s", status, dest["celular"], body)
+        except Exception as exc:
+            log.warning("📱 Error al enviar WhatsApp a %s (%s): %s", dest["nombre"], dest["celular"], exc)
 
 def format_conversation_transcript(history: list) -> str:
     """Formatea la conversación completa en texto plano con el formato solicitado:
@@ -530,27 +668,19 @@ def build_cotizacion_email_html(cliente_data: dict, productos_lista: list, folio
     return html
 
 def send_cotizacion_email_background(cliente_data: dict, productos_lista: list, transcript_text: str = ""):
-    """Tarea asíncrona para generar el folio, guardar en BD y enviar el correo a los administradores."""
-    smtp_cfg = get_smtp_config()
-    if not smtp_cfg:
-        log.error("No hay servidor SMTP configurado para enviar la cotización.")
-        return
-
-    destinatario = (cliente_data.get("correo") or cliente_data.get("email") or "").strip()
-    admin_recipients = get_admin_recipients()
-
-    folio = f"C-{int(time.time()) % 1000000:06d}"
+    """Tarea en segundo plano: guarda en BD, envía correo y WhatsApp a los administradores."""
+    # ── 1. Guardar en Base de Datos ──
     razon_social = (cliente_data.get("razon_social") or cliente_data.get("nombre") or cliente_data.get("empresa") or "Cliente Web").strip()
-    whatsapp = (cliente_data.get("whatsapp") or cliente_data.get("celular") or cliente_data.get("telefono") or "No indicado").strip()
-    pedido = (cliente_data.get("productos_solicitados") or "Registro / cotización web").strip()
-    fecha_hoy = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    whatsapp     = (cliente_data.get("whatsapp") or cliente_data.get("celular") or cliente_data.get("telefono") or "No indicado").strip()
+    destinatario = (cliente_data.get("correo") or cliente_data.get("email") or "").strip()
+    pedido       = (cliente_data.get("productos_solicitados") or "Registro / cotización web").strip()
+    fecha_hoy    = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    folio        = f"C-{int(time.time()) % 1000000:06d}"
 
-    # Calcular totales si vienen productos estructurados
     subtotal_neto = sum(p.get("cantidad", 1) * p.get("precio_unitario", 0) for p in productos_lista)
-    iva = int(round(subtotal_neto * 0.19))
+    iva   = int(round(subtotal_neto * 0.19))
     total = subtotal_neto + iva
 
-    # Guardar en Base de Datos
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
@@ -570,10 +700,7 @@ def send_cotizacion_email_background(cliente_data: dict, productos_lista: list, 
                     destinatario or "sin_correo@tridente.cl",
                     cliente_data.get("direccion") or "Región de Coquimbo",
                     f"Chat Camila. Solicitud: {pedido}. Transcripción: {transcript_text[:1000]}",
-                    subtotal_neto,
-                    iva,
-                    total,
-                    len(productos_lista),
+                    subtotal_neto, iva, total, len(productos_lista),
                     json.dumps(productos_lista, ensure_ascii=False)
                 ))
             conn.commit()
@@ -581,10 +708,12 @@ def send_cotizacion_email_background(cliente_data: dict, productos_lista: list, 
     except Exception as exc:
         log.warning("No se pudo guardar la cotización en BD: %s", exc)
 
-    # Preparar el correo
-    html_content = build_cotizacion_email_html(cliente_data, productos_lista, folio, transcript_text)
-
-    plain_text = f"""Nueva Cotización Web - {razon_social}
+    # ── 2. Envío de CORREO a administradores con recibe_camila_email=true ──
+    smtp_cfg = get_smtp_config()
+    if smtp_cfg:
+        admin_email_recipients = get_admin_recipients()
+        html_content = build_cotizacion_email_html(cliente_data, productos_lista, folio, transcript_text)
+        plain_text = f"""Nueva Cotización Web - {razon_social}
 
 DATOS DEL CLIENTE / NEGOCIO:
 - Razón Social: {razon_social}
@@ -600,30 +729,29 @@ HISTORIAL COMPLETO DE LA CONVERSACIÓN:
 {transcript_text}
 ============================================================
 """
-
-    msg = EmailMessage()
-    msg["Subject"] = f"Nueva Cotización Web - {razon_social}"
-    msg["From"] = f"{smtp_cfg['from_name']} <{smtp_cfg['from_email']}>"
-
-    # Enviar principalmente a los administradores
-    if admin_recipients:
-        msg["To"] = ", ".join(admin_recipients)
-        if destinatario and "@" in destinatario and destinatario not in admin_recipients:
-            msg["Cc"] = destinatario
+        msg = EmailMessage()
+        msg["Subject"] = f"Nueva Cotización Web - {razon_social}"
+        msg["From"]    = f"{smtp_cfg['from_name']} <{smtp_cfg['from_email']}>"
+        if admin_email_recipients:
+            msg["To"] = ", ".join(admin_email_recipients)
+            if destinatario and "@" in destinatario and destinatario not in admin_email_recipients:
+                msg["Cc"] = destinatario
+        else:
+            msg["To"] = destinatario if ("@" in destinatario) else smtp_cfg["username"]
+        msg.set_content(plain_text)
+        msg.add_alternative(html_content, subtype="html")
+        try:
+            with smtplib.SMTP_SSL(smtp_cfg["host"], smtp_cfg["port"], timeout=20) as server:
+                server.login(smtp_cfg["username"], smtp_cfg["password"])
+                server.send_message(msg)
+            log.info("📧 Correo enviado a: %s (Cliente: %s)", admin_email_recipients, razon_social)
+        except Exception as exc:
+            log.error("Error al enviar correo SMTP: %s", exc)
     else:
-        msg["To"] = destinatario if ("@" in destinatario) else smtp_cfg["username"]
+        log.error("No hay servidor SMTP configurado — omitiendo envío de correo.")
 
-    msg.set_content(plain_text)
-    msg.add_alternative(html_content, subtype="html")
-
-    # Enviar correo vía SMTP SSL
-    try:
-        with smtplib.SMTP_SSL(smtp_cfg["host"], smtp_cfg["port"], timeout=20) as server:
-            server.login(smtp_cfg["username"], smtp_cfg["password"])
-            server.send_message(msg)
-        log.info("📧 Notificación enviada con éxito a administradores: %s (Cliente: %s, Razón Social: %s)", admin_recipients, destinatario, razon_social)
-    except Exception as exc:
-        log.error("Error al enviar notificación por SMTP: %s", exc)
+    # ── 3. Envío de WHATSAPP a administradores con recibe_camila_whatsapp=true ──
+    send_whatsapp_notifications(cliente_data, transcript_text)
 
 
 def load_fallback_catalog() -> list[dict]:
