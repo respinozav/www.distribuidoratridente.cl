@@ -54,9 +54,9 @@ WHATSAPP_NUMBER = os.environ.get("WHATSAPP_NUMBER", "56944488407")
 # ---------------------------------------------------------------------------
 # Evolution API — WhatsApp (compartido con pedidos.distribuidoratridente.cl)
 # ---------------------------------------------------------------------------
-EVOLUTION_API_URL           = os.environ.get("EVOLUTION_API_URL", "").rstrip("/")
-EVOLUTION_API_GLOBAL_KEY    = os.environ.get("EVOLUTION_API_GLOBAL_KEY", "")
-WHATSAPP_INSTANCE_NAME      = os.environ.get("WHATSAPP_INSTANCE_NAME", "tridente")
+EVOLUTION_API_URL           = (os.environ.get("EVOLUTION_API_URL") or "http://localhost:8080").rstrip("/")
+EVOLUTION_API_GLOBAL_KEY    = os.environ.get("EVOLUTION_API_GLOBAL_KEY") or "tridente_global_secret_123"
+WHATSAPP_INSTANCE_NAME      = os.environ.get("WHATSAPP_INSTANCE_NAME") or "tridente_ws"
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get(
@@ -1184,6 +1184,9 @@ def init_db_tables():
                     CREATE INDEX IF NOT EXISTS idx_cotizaciones_productos_rut ON {DB_SCHEMA}.cotizaciones_productos(cliente_rut);
                     CREATE INDEX IF NOT EXISTS idx_cotizaciones_productos_fecha ON {DB_SCHEMA}.cotizaciones_productos(fecha_cotizacion);
                     CREATE INDEX IF NOT EXISTS idx_cotizaciones_productos_sku ON {DB_SCHEMA}.cotizaciones_productos(codigo_sku);
+
+                    ALTER TABLE {DB_SCHEMA}.usuarios ADD COLUMN IF NOT EXISTS recibe_camila_whatsapp BOOLEAN DEFAULT false;
+                    ALTER TABLE {DB_SCHEMA}.usuarios ADD COLUMN IF NOT EXISTS recibe_camila_email BOOLEAN DEFAULT false;
                 """)
             conn.commit()
         log.info("✓ Tablas de cotizaciones listas en %s", DB_SCHEMA)

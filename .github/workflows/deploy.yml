@@ -23,5 +23,23 @@ jobs:
             cd /var/www/www.distribuidoratridente.cl
             git fetch origin main
             git reset --hard origin/main
+
+            # ── Inyectar variables de Evolution API al .env del backend ──
+            ENV_FILE="/var/www/www.distribuidoratridente.cl/backend/.env"
+            inject_env() {
+              local key="$1"
+              local value="$2"
+              if [ -n "$value" ]; then
+                if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+                  sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+                else
+                  echo "${key}=${value}" >> "$ENV_FILE"
+                fi
+              fi
+            }
+            inject_env "EVOLUTION_API_URL"         "${{ secrets.EVOLUTION_API_URL }}"
+            inject_env "EVOLUTION_API_GLOBAL_KEY"  "${{ secrets.EVOLUTION_API_GLOBAL_KEY }}"
+            inject_env "WHATSAPP_INSTANCE_NAME"    "${{ secrets.WHATSAPP_INSTANCE_NAME }}"
+
             cd deploy
             bash deploy.sh
