@@ -70,33 +70,40 @@ ALLOWED_ORIGINS = [
 # Gemini Client y Modelos con Fallback
 # ---------------------------------------------------------------------------
 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-PRIMARY_MODEL = "gemini-3.1-flash-lite"
+PRIMARY_MODEL = "gemini-3.5-flash-lite"
 FALLBACK_MODELS = [
+    "gemini-3.5-flash-lite",
+    "gemini-3-flash-preview",
+    "gemma-4-26b-a4b-it",
     "gemini-3.1-flash-lite",
-    "gemini-3.8-flash",
 ]
 
 def generate_with_fallback(contents: list, system_instruction: str) -> str:
     """Llama a Gemini con fallback rápido entre modelos en caso de error o sobrecarga."""
     last_exc = None
     for model_name in FALLBACK_MODELS:
-        try:
-            res = gemini_client.models.generate_content(
-                model=model_name,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.3,
-                    max_output_tokens=280,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                ),
-            )
-            if res and res.text:
-                return res.text
-        except Exception as exc:
-            last_exc = exc
-            log.warning("Modelo %s falló: %s", model_name, exc)
-            continue
+        for attempt in range(2):
+            try:
+                res = gemini_client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.3,
+                        max_output_tokens=280,
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    ),
+                )
+                if res and res.text:
+                    return res.text
+            except Exception as exc:
+                last_exc = exc
+                err_str = str(exc)
+                log.warning("Modelo %s (intento %d) falló: %s", model_name, attempt + 1, err_str[:120])
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    break
+                time.sleep(0.3)
+                continue
     if last_exc:
         raise last_exc
     return ""
@@ -1492,7 +1499,12 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
         assistant_text = generate_with_fallback(contents, SYSTEM_PROMPT)
     except Exception as exc:
         log.error("Error al llamar a Gemini: %s", exc)
-        raise HTTPException(status_code=502, detail=f"Error en servicio IA: {exc}")
+        if is_only_greeting:
+            assistant_text = f"¡Hola! {saludo_horario.capitalize()}, ¿en qué te puedo ayudar?"
+        elif is_ser_cliente or is_price_or_cotizar_q:
+            assistant_text = "Si Claro, mira para ser cliente o comprar, necesito estos datos:\nRazón Social:\nCorreo:\nWhatsApp:"
+        else:
+            assistant_text = "Sí, tenemos stock disponible. Si gustas indícame tu Razón Social, correo y WhatsApp para enviarte la cotización formal con los precios mayoristas."
 
     if not is_first_turn:
         # En conversaciones ya iniciadas, PROHIBIDO volver a decir "¡Hola!", "Hola buenas noches", etc.
