@@ -318,73 +318,65 @@ def get_smtp_config():
 
 ADMIN_ROL_ID = "29f48a5a-623c-4677-a8b8-e9c848165595"
 
-def get_admin_recipients():
-    """Obtiene los correos de administradores con rol_id = ADMIN_ROL_ID para envío de leads.
-    Mantiene compatibilidad hacia atrás: si no existe recibe_camila_email, retorna todos los admins.
+def get_admin_notification_destinatarios() -> tuple[list[dict], list[str]]:
+    """Paso A: Obtiene los administradores activos configurados para recibir alertas de Camila.
+    Ejecuta:
+      SELECT nombre, correo, celular, recibe_camila_whatsapp, recibe_camila_email
+      FROM bdtridente.usuarios
+      WHERE activo = true
+        AND (recibe_camila_whatsapp = true OR recibe_camila_email = true);
+    Retorna:
+      - whatsapp_dest: list de dicts {"nombre": str, "celular": "569...", "raw": "+569..."}
+      - email_dest: list de strings ["correo@ejemplo.com", ...]
     """
-    recipients = ["pedidos.tridente2026@gmail.com"]
-    try:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                # Intentar con la nueva columna recibe_camila_email
-                try:
-                    cur.execute(
-                        f"SELECT correo FROM {DB_SCHEMA}.usuarios "
-                        f"WHERE rol_id = %s AND activo = true AND recibe_camila_email = true "
-                        f"AND correo IS NOT NULL",
-                        (ADMIN_ROL_ID,)
-                    )
-                except Exception:
-                    # Fallback: columna todavía no existe, usar todos los admins activos
-                    conn.rollback()
-                    cur.execute(
-                        f"SELECT correo FROM {DB_SCHEMA}.usuarios "
-                        f"WHERE rol_id = %s AND correo IS NOT NULL",
-                        (ADMIN_ROL_ID,)
-                    )
-                rows = cur.fetchall()
-                for r in rows:
-                    correo = (r[0] or "").strip()
-                    if correo and "@" in correo and correo not in recipients:
-                        recipients.append(correo)
-
-                # Fallback complementario: recibe_pedido = true
-                try:
-                    cur.execute(
-                        f"SELECT correo FROM {DB_SCHEMA}.usuarios "
-                        f"WHERE recibe_pedido = true AND activo = true AND correo IS NOT NULL"
-                    )
-                    for r in cur.fetchall():
-                        correo = (r[0] or "").strip()
-                        if correo and "@" in correo and correo not in recipients:
-                            recipients.append(correo)
-                except Exception:
-                    pass
-    except Exception as exc:
-        log.warning("No se pudo obtener destinatarios administradores de BD: %s", exc)
-    return recipients
-
-
-def get_admin_whatsapp_recipients() -> list[dict]:
-    """Retorna lista de {celular, nombre} de administradores con recibe_camila_whatsapp=true."""
-    recipients = []
+    whatsapp_dest = []
+    email_dest = []
     try:
         with get_db() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    f"SELECT nombre, celular FROM {DB_SCHEMA}.usuarios "
-                    f"WHERE rol_id = %s AND activo = true "
-                    f"AND recibe_camila_whatsapp = true "
-                    f"AND celular IS NOT NULL AND celular <> ''",
-                    (ADMIN_ROL_ID,)
-                )
-                for r in cur.fetchall():
-                    celular = format_chile_phone(r["celular"] or "")
-                    if celular:
-                        recipients.append({"nombre": r.get("nombre") or "", "celular": celular})
+                cur.execute(f"""
+                    SELECT nombre, correo, celular, recibe_camila_whatsapp, recibe_camila_email
+                    FROM {DB_SCHEMA}.usuarios
+                    WHERE activo = true
+                      AND (recibe_camila_whatsapp = true OR recibe_camila_email = true);
+                """)
+                rows = cur.fetchall()
+                for r in rows:
+                    # Filtro WhatsApp: recibe_camila_whatsapp = true y celular no nulo
+                    if r.get("recibe_camila_whatsapp"):
+                        raw_cel = (r.get("celular") or "").strip()
+                        clean_phone = format_chile_phone(raw_cel)
+                        if clean_phone:
+                            raw_formatted = raw_cel if raw_cel.startswith("+") else f"+{clean_phone}"
+                            whatsapp_dest.append({
+                                "nombre": r.get("nombre") or "Administrador",
+                                "celular": clean_phone,
+                                "raw": raw_formatted
+                            })
+                    # Filtro Email: recibe_camila_email = true y correo válido
+                    if r.get("recibe_camila_email"):
+                        raw_email = (r.get("correo") or "").strip()
+                        if raw_email and "@" in raw_email and raw_email not in email_dest:
+                            email_dest.append(raw_email)
     except Exception as exc:
-        log.warning("No se pudo obtener destinatarios WhatsApp de BD: %s", exc)
-    return recipients
+        log.warning("No se pudo obtener destinatarios administradores de BD: %s", exc)
+
+    if not email_dest:
+        email_dest = ["pedidos.tridente2026@gmail.com"]
+
+    return whatsapp_dest, email_dest
+
+
+def get_admin_recipients() -> list[str]:
+    """Obtiene los correos de administradores configurados para recibir alertas."""
+    _, emails = get_admin_notification_destinatarios()
+    return emails
+
+
+def get_admin_whatsapp_recipients() -> list[dict]:
+    """Retorna lista de {celular, nombre, raw} de administradores con recibe_camila_whatsapp=true."""
+    wa, _ = get_admin_notification_destinatarios()
+    return wa
 
 
 def format_chile_phone(raw: str) -> str:
@@ -411,14 +403,27 @@ def format_chile_phone(raw: str) -> str:
     return digits                 # devolver lo que venga
 
 
-def send_whatsapp_notifications(cliente_data: dict, transcript_text: str = ""):
-    """Envía notificación WhatsApp a todos los administradores con recibe_camila_whatsapp=true.
-    Usa Evolution API (POST /message/sendText/{instance}).
-    Falla silenciosamente si la API no está configurada o responde con error.
+def send_whatsapp_notifications(
+    cliente_data: dict,
+    transcript_text: str = "",
+    recipients: Optional[list[dict]] = None,
+    total_estimado: Optional[float] = None
+) -> tuple[bool, str]:
+    """Paso B: Envía notificación WhatsApp a los administradores calificados.
+    Retorna (enviado_whatsapp: bool, destinatarios_str: str).
     """
+    if recipients is None:
+        recipients, _ = get_admin_notification_destinatarios()
+
+    destinatarios_todos = [d.get("raw") or f"+{d['celular']}" for d in recipients] if recipients else []
+
+    if not recipients:
+        log.info("No hay administradores con recibe_camila_whatsapp=true — omitiendo WhatsApp.")
+        return False, ""
+
     if not EVOLUTION_API_URL or not EVOLUTION_API_GLOBAL_KEY:
         log.info("Evolution API no configurada — omitiendo envío WhatsApp de lead.")
-        return
+        return False, ", ".join(destinatarios_todos)
 
     razon_social  = (cliente_data.get("razon_social") or cliente_data.get("nombre") or "Cliente Web").strip()
     whatsapp_cl   = (cliente_data.get("whatsapp") or cliente_data.get("celular") or "No indicado").strip()
@@ -432,6 +437,10 @@ def send_whatsapp_notifications(cliente_data: dict, transcript_text: str = ""):
     except Exception:
         now = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
     fecha_hora_cl = now.strftime("%d/%m/%Y %H:%M")
+
+    seccion_total = ""
+    if total_estimado and total_estimado > 0:
+        seccion_total = f"\n💰 *Total estimado:* ${int(total_estimado):,} (IVA incluido)\n"
 
     seccion_transcripcion = ""
     if transcript_text and transcript_text.strip():
@@ -450,14 +459,10 @@ def send_whatsapp_notifications(cliente_data: dict, transcript_text: str = ""):
         f"📱 *WhatsApp:* {whatsapp_cl}\n"
         f"📧 *Correo:* {correo_cl}\n\n"
         f"📝 *Detalle de la consulta / productos:*\n{pedido}"
+        f"{seccion_total}"
         f"{seccion_transcripcion}\n\n"
         f"⏰ *Fecha y hora:* {fecha_hora_cl}"
     )
-
-    destinatarios = get_admin_whatsapp_recipients()
-    if not destinatarios:
-        log.info("No hay administradores con recibe_camila_whatsapp=true — omitiendo WhatsApp.")
-        return
 
     endpoint = f"{EVOLUTION_API_URL}/message/sendText/{WHATSAPP_INSTANCE_NAME}"
     headers  = {
@@ -465,7 +470,10 @@ def send_whatsapp_notifications(cliente_data: dict, transcript_text: str = ""):
         "apikey": EVOLUTION_API_GLOBAL_KEY,
     }
 
-    for dest in destinatarios:
+    enviado_al_menos_uno = False
+    destinatarios_enviados = []
+
+    for dest in recipients:
         payload = json.dumps({
             "number": dest["celular"],
             "text":   mensaje,
@@ -478,11 +486,108 @@ def send_whatsapp_notifications(cliente_data: dict, transcript_text: str = ""):
                 status = resp.getcode()
                 body   = resp.read().decode("utf-8", errors="replace")[:300]
             if status in (200, 201):
+                enviado_al_menos_uno = True
+                destinatarios_enviados.append(dest.get("raw") or f"+{dest['celular']}")
                 log.info("📱 WhatsApp enviado a %s (%s): HTTP %s", dest["nombre"], dest["celular"], status)
             else:
                 log.warning("📱 WhatsApp resp inesperada %s a %s: %s", status, dest["celular"], body)
         except Exception as exc:
             log.warning("📱 Error al enviar WhatsApp a %s (%s): %s", dest["nombre"], dest["celular"], exc)
+
+    destinatarios_str = ", ".join(destinatarios_enviados) if destinatarios_enviados else ", ".join(destinatarios_todos)
+    return enviado_al_menos_uno, destinatarios_str
+
+
+def save_camila_log(
+    razon_social: str,
+    whatsapp: str,
+    correo: str,
+    resumen: str,
+    conversacion: str,
+    total_estimado: Optional[float],
+    enviado_whatsapp: bool,
+    enviado_email: bool,
+    destinatarios_whatsapp: str,
+    destinatarios_email: str,
+    estado: str = "COMPLETADA",
+    origen: str = "WEB_CAMILA"
+) -> Optional[str]:
+    """Paso C: Inserta el registro de la venta o cotización en bdtridente.camila_logs (SQL directo).
+    Fallback HTTP a pedidos.distribuidoratridente.cl/api/camila/logs si la BD local fallase.
+    """
+    wa_clean = format_chile_phone(whatsapp) if whatsapp else ""
+    wa_cliente = f"+{wa_clean}" if wa_clean else (whatsapp or "")
+
+    sql = f"""
+        INSERT INTO {DB_SCHEMA}.camila_logs (
+            razon_social,
+            whatsapp,
+            correo,
+            resumen,
+            conversacion,
+            total_estimado,
+            enviado_whatsapp,
+            enviado_email,
+            destinatarios_whatsapp,
+            destinatarios_email,
+            estado,
+            origen,
+            created_at,
+            updated_at
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+        ) RETURNING id;
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (
+                    (razon_social or "Cliente Web")[:255],
+                    wa_cliente[:50] if wa_cliente else None,
+                    correo[:255] if correo else None,
+                    resumen or "Cotización o registro web",
+                    conversacion or "",
+                    float(total_estimado) if total_estimado is not None and total_estimado > 0 else None,
+                    bool(enviado_whatsapp),
+                    bool(enviado_email),
+                    destinatarios_whatsapp or "",
+                    destinatarios_email or "",
+                    estado or "COMPLETADA",
+                    origen or "WEB_CAMILA"
+                ))
+                new_id = cur.fetchone()[0]
+            conn.commit()
+            log.info("✓ Log Camila guardado en bdtridente.camila_logs con ID: %s (%s)", new_id, razon_social)
+            return str(new_id)
+    except Exception as exc:
+        log.error("Error al guardar en bdtridente.camila_logs vía SQL: %s. Intentando HTTP fallback...", exc)
+        # Fallback HTTP REST a pedidos.distribuidoratridente.cl
+        try:
+            payload = json.dumps({
+                "razon_social": razon_social or "Cliente Web",
+                "whatsapp": wa_cliente,
+                "correo": correo,
+                "resumen": resumen or "Cotización o registro web",
+                "conversacion": conversacion or "",
+                "total_estimado": float(total_estimado) if total_estimado is not None else 0.0,
+                "enviado_whatsapp": bool(enviado_whatsapp),
+                "enviado_email": bool(enviado_email),
+                "destinatarios_whatsapp": destinatarios_whatsapp,
+                "destinatarios_email": destinatarios_email,
+                "estado": estado,
+                "origen": origen
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://pedidos.distribuidoratridente.cl/api/camila/logs",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                log.info("✓ Log Camila guardado vía HTTP fallback: HTTP %s", resp.getcode())
+        except Exception as http_exc:
+            log.warning("No se pudo enviar log Camila por HTTP fallback: %s", http_exc)
+    return None
 
 def format_conversation_transcript(history: list) -> str:
     """Formatea la conversación completa en texto plano con el formato solicitado:
@@ -726,10 +831,14 @@ def send_cotizacion_email_background(cliente_data: dict, productos_lista: list, 
     except Exception as exc:
         log.warning("No se pudo guardar la cotización en BD: %s", exc)
 
-    # ── 2. Envío de CORREO a administradores con recibe_camila_email=true ──
+    # ── 2. Envío de CORREO a administradores con recibe_camila_email=true (Paso B: Email) ──
+    whatsapp_recipients, admin_email_recipients = get_admin_notification_destinatarios()
+
+    enviado_email = False
+    destinatarios_email_str = ", ".join(admin_email_recipients) if admin_email_recipients else ""
+
     smtp_cfg = get_smtp_config()
     if smtp_cfg:
-        admin_email_recipients = get_admin_recipients()
         html_content = build_cotizacion_email_html(cliente_data, productos_lista, folio, transcript_text)
         plain_text = f"""Nueva Cotización Web - {razon_social}
 
@@ -762,14 +871,37 @@ HISTORIAL COMPLETO DE LA CONVERSACIÓN:
             with smtplib.SMTP_SSL(smtp_cfg["host"], smtp_cfg["port"], timeout=20) as server:
                 server.login(smtp_cfg["username"], smtp_cfg["password"])
                 server.send_message(msg)
+            enviado_email = True
             log.info("📧 Correo enviado a: %s (Cliente: %s)", admin_email_recipients, razon_social)
         except Exception as exc:
             log.error("Error al enviar correo SMTP: %s", exc)
     else:
         log.error("No hay servidor SMTP configurado — omitiendo envío de correo.")
 
-    # ── 3. Envío de WHATSAPP a administradores con recibe_camila_whatsapp=true ──
-    send_whatsapp_notifications(cliente_data, transcript_text)
+    # ── 3. Envío de WHATSAPP a administradores con recibe_camila_whatsapp=true (Paso B: WhatsApp) ──
+    total_estimado_val = float(total) if (productos_lista and total > 0) else None
+    enviado_whatsapp, destinatarios_whatsapp_str = send_whatsapp_notifications(
+        cliente_data=cliente_data,
+        transcript_text=transcript_text,
+        recipients=whatsapp_recipients,
+        total_estimado=total_estimado_val
+    )
+
+    # ── 4. Guardar en bdtridente.camila_logs (Paso C) ──
+    save_camila_log(
+        razon_social=razon_social,
+        whatsapp=whatsapp,
+        correo=destinatario,
+        resumen=pedido,
+        conversacion=transcript_text,
+        total_estimado=total_estimado_val,
+        enviado_whatsapp=enviado_whatsapp,
+        enviado_email=enviado_email,
+        destinatarios_whatsapp=destinatarios_whatsapp_str,
+        destinatarios_email=destinatarios_email_str,
+        estado="COMPLETADA",
+        origen="WEB_CAMILA"
+    )
 
 
 def load_fallback_catalog() -> list[dict]:
@@ -1205,6 +1337,27 @@ def init_db_tables():
 
                     ALTER TABLE {DB_SCHEMA}.usuarios ADD COLUMN IF NOT EXISTS recibe_camila_whatsapp BOOLEAN DEFAULT false;
                     ALTER TABLE {DB_SCHEMA}.usuarios ADD COLUMN IF NOT EXISTS recibe_camila_email BOOLEAN DEFAULT false;
+
+                    CREATE TABLE IF NOT EXISTS {DB_SCHEMA}.camila_logs (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        razon_social VARCHAR(255) NOT NULL,
+                        whatsapp VARCHAR(50),
+                        correo VARCHAR(255),
+                        resumen TEXT,
+                        conversacion TEXT,
+                        total_estimado NUMERIC(12, 2),
+                        enviado_whatsapp BOOLEAN DEFAULT false,
+                        enviado_email BOOLEAN DEFAULT false,
+                        destinatarios_whatsapp TEXT,
+                        destinatarios_email TEXT,
+                        estado VARCHAR(50) DEFAULT 'COMPLETADA',
+                        origen VARCHAR(100) DEFAULT 'WEB_CAMILA',
+                        metadata_extra JSONB DEFAULT '{{}}'::jsonb,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_camila_logs_created_at ON {DB_SCHEMA}.camila_logs(created_at DESC);
+                    CREATE INDEX IF NOT EXISTS idx_camila_logs_estado ON {DB_SCHEMA}.camila_logs(estado);
                 """)
             conn.commit()
         log.info("✓ Tablas de cotizaciones listas en %s", DB_SCHEMA)
