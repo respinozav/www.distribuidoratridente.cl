@@ -128,35 +128,114 @@ def get_db():
 
 
 SYNONYMS = {
-    "cigarro": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "philip morris", "chesterfield", "tabaco"],
-    "cigarros": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "philip morris", "chesterfield", "tabaco"],
-    "cigarrillo": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "philip morris", "chesterfield", "tabaco"],
-    "cigarrillos": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "philip morris", "chesterfield", "tabaco"],
+    # 1. CONFITES
+    "confites": ["confites", "bon o bon", "alka", "big time", "chocolate", "galleta"],
+    "confite": ["confites", "bon o bon", "alka", "big time", "chocolate", "galleta"],
+    "dulce": ["confites", "bon o bon", "alka", "big time", "chocolate", "galleta"],
+    "dulces": ["confites", "bon o bon", "alka", "big time", "chocolate", "galleta"],
+    "golosina": ["confites", "bon o bon", "alka", "big time", "chocolate", "galleta"],
+    "golosinas": ["confites", "bon o bon", "alka", "big time", "chocolate", "galleta"],
+    "chocolate": ["chocolate", "bon o bon", "vizzio", "costa", "arcor", "ambrosoli"],
+    "chocolates": ["chocolate", "bon o bon", "vizzio", "costa", "arcor", "ambrosoli"],
+    "alfajor": ["alfajor", "bon o bon", "classic", "premium"],
+    "alfajores": ["alfajor", "bon o bon", "classic", "premium"],
+    "galleta": ["galleta", "mckay", "costa", "arcor"],
+    "galletas": ["galleta", "mckay", "costa", "arcor"],
+    "caramelo": ["alka", "caramelo"],
+    "caramelos": ["alka", "caramelo"],
+    "chicle": ["big time", "chicle"],
+    "chicles": ["big time", "chicle"],
+    "alka": ["alka"],
+    "big time": ["big time"],
+
+    # 2. ABARROTES
+    "abarrote": ["abarrotes", "clipper", "ronson", "duracell", "encendedor", "pila"],
+    "abarrotes": ["abarrotes", "clipper", "ronson", "duracell", "encendedor", "pila"],
+    "encendedor": ["clipper", "ronson", "encendedor"],
+    "encendedores": ["clipper", "ronson", "encendedor"],
+    "clipper": ["clipper"],
+    "ronson": ["ronson"],
+    "pila": ["duracell", "pila"],
+    "pilas": ["duracell", "pila"],
+    "bateria": ["duracell", "bateria"],
+    "baterias": ["duracell", "bateria"],
+    "duracell": ["duracell"],
+
+    # 3. VAPORIZADORES
+    "vaporizador": ["vaporizadores", "dragbar"],
+    "vaporizadores": ["vaporizadores", "dragbar"],
+    "vape": ["vaporizadores", "dragbar"],
+    "vapes": ["vaporizadores", "dragbar"],
+    "vapo": ["vaporizadores", "dragbar"],
+    "vapos": ["vaporizadores", "dragbar"],
+    "vapeador": ["vaporizadores", "dragbar"],
+    "vapeadores": ["vaporizadores", "dragbar"],
+    "pod": ["vaporizadores", "dragbar"],
+    "pods": ["vaporizadores", "dragbar"],
+    "dragbar": ["dragbar"],
+
+    # 4. LATINOS
+    "latino": ["latinos", "mclaren"],
+    "latinos": ["latinos", "mclaren"],
+    "mclaren": ["mclaren"],
+
+    # 5. MARLBORO
+    "marlboro": ["marlboro"],
+    "malboro": ["marlboro"],
+
+    # 6. BAT
+    "bat": ["bat", "kent", "lucky", "pall mall"],
+    "kent": ["kent"],
+    "lucky": ["lucky strike", "lucky"],
+    "lucky strike": ["lucky strike"],
+    "pall mall": ["pall mall"],
+
+    # Genérico cigarros / cigarrillos / puchos
+    "cigarro": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "tabaco"],
+    "cigarros": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "tabaco"],
+    "cigarrillo": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "tabaco"],
+    "cigarrillos": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos", "tabaco"],
     "pucho": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos"],
     "puchos": ["kent", "lucky", "pall mall", "marlboro", "atlas", "latinos"],
-    "tabaco": ["captain black", "bristol", "ocb", "clipper", "tabaco"],
-    "tabacos": ["captain black", "bristol", "ocb", "clipper", "tabaco"],
-    "dulce": ["confites", "caramelo", "chocolate", "gomita"],
-    "dulces": ["confites", "caramelo", "chocolate", "gomita"],
-    "chocolate": ["chocolate", "vizzio", "costa", "arcor", "ambrosoli", "sahne nuss", "chocman"],
-    "chocolates": ["chocolate", "vizzio", "costa", "arcor", "ambrosoli", "sahne nuss", "chocman"],
-    "galleta": ["galleta", "mckay", "costa", "arcor", "triton", "oreo", "morochas"],
-    "galletas": ["galleta", "mckay", "costa", "arcor", "triton", "oreo", "morochas"],
-    "snack": ["snack", "papas", "ramitas", "lays", "evercrisp", "doritos", "salado"],
-    "snacks": ["snack", "papas", "ramitas", "lays", "evercrisp", "doritos", "salado"],
-    "pila": ["pila", "duracell", "eveready", "bateria"],
-    "pilas": ["pila", "duracell", "eveready", "bateria"],
-    "bateria": ["pila", "duracell", "eveready", "bateria"],
-    "baterias": ["pila", "duracell", "eveready", "bateria"],
-    "encendedor": ["clipper", "encendedor", "gas", "ronson"],
-    "encendedores": ["clipper", "encendedor", "gas", "ronson"],
-    "papelillo": ["ocb", "papelillo", "tabaco"],
-    "papelillos": ["ocb", "papelillo", "tabaco"],
-    "filtro": ["filtro", "ocb", "tabaco"],
-    "filtros": ["filtro", "ocb", "tabaco"],
-    "vapo": ["vaporizador", "vape", "vapo", "pod"],
-    "vaporizador": ["vaporizador", "vape", "vapo", "pod"],
-    "vaporizadores": ["vaporizador", "vape", "vapo", "pod"],
+
+    # 7. TABAQUERIA
+    "tabaqueria": ["tabaqueria", "ocb", "dark horse", "filtro", "papelillo", "enrolador", "moledor", "blunt"],
+    "tabaquería": ["tabaqueria", "ocb", "dark horse", "filtro", "papelillo", "enrolador", "moledor", "blunt"],
+    "papelillo": ["ocb", "dark horse", "papelillo"],
+    "papelillos": ["ocb", "dark horse", "papelillo"],
+    "filtro": ["ocb", "filtro"],
+    "filtros": ["ocb", "filtro"],
+    "enrolador": ["dark horse", "enrolador"],
+    "enroladores": ["dark horse", "enrolador"],
+    "moledor": ["ocb", "moledor"],
+    "moledores": ["ocb", "moledor"],
+    "grinder": ["ocb", "moledor"],
+    "blunt": ["blunt wrap", "blunt"],
+
+    # 8. TABACOS
+    "tabaco": ["tabacos", "bristol", "captain black"],
+    "tabacos": ["tabacos", "bristol", "captain black"],
+    "bristol": ["bristol"],
+    "captain black": ["captain black"],
+
+    # 9. ATLAS
+    "atlas": ["atlas", "oregon"],
+    "oregon": ["oregon"],
+
+    # 10. DESECHABLES
+    "desechable": ["desechables", "bolsa", "marmita", "contenedor", "vaso", "plumavit", "pincho"],
+    "desechables": ["desechables", "bolsa", "marmita", "contenedor", "vaso", "plumavit", "pincho"],
+    "bolsa": ["bolsa"],
+    "bolsas": ["bolsa"],
+    "marmita": ["marmita", "contenedor"],
+    "marmitas": ["marmita", "contenedor"],
+    "contenedor": ["contenedor", "marmita"],
+    "contenedores": ["contenedor", "marmita"],
+    "plumavit": ["plumavit", "portacomidas"],
+    "vaso": ["vaso"],
+    "vasos": ["vaso"],
+    "pincho": ["pincho"],
+    "pinchos": ["pincho"],
 }
 
 
@@ -1167,7 +1246,60 @@ STOP_WORDS = {
     "tendras", "tendrás", "llegan", "despacho", "despachos", "minimo", "mínimo"
 }
 
-SHORT_BRAND_WHITELIST = {"ocb", "red", "ice", "box"}
+SHORT_BRAND_WHITELIST = {"ocb", "red", "ice", "box", "bat", "pod", "vape", "alka", "gas"}
+
+OFFICIAL_CATEGORY_MAP = {
+    "CONFITES": {
+        "keywords": ["confite", "confites", "dulce", "dulces", "golosina", "golosinas", "chocolate", "chocolates", "alfajor", "alfajores", "galleta", "galletas", "caramelo", "caramelos", "chicle", "chicles", "alka", "bon o bon", "big time"],
+        "nombre": "Confites",
+        "productos": "Alfajores (Bon o Bon blanco y leche, Classic, Premium), caramelos Alka (Cereza, Menta, Mentol, Naranja, Miel, Strong), chicles Big Time, chocolates y galletas."
+    },
+    "ABARROTES": {
+        "keywords": ["abarrote", "abarrotes"],
+        "nombre": "Abarrotes",
+        "productos": "Encendedores Clipper (variedades display) y Ronson (Clearlite, Colourlite, Round, Electrolite), y Pilas Duracell (AA, AAA, 9V, 2016, 2025, 2032, Auditivas)."
+    },
+    "VAPORIZADORES": {
+        "keywords": ["vaporizador", "vaporizadores", "vape", "vapes", "vapo", "vapos", "vapeador", "vapeadores", "pod", "pods", "dragbar"],
+        "nombre": "Vaporizadores",
+        "productos": "Vaporizadores Dragbar 3500 Puffs en sabores Frutos del Bosque, Manzana, Sandía y Uva."
+    },
+    "LATINOS": {
+        "keywords": ["latino", "latinos", "mclaren"],
+        "nombre": "Latinos",
+        "productos": "Latino Azul (10 y 20), Latino Rojo (10 y 20), Latino Freeze (10 y 20), Blackberry, Boom Freeze, Crazy Sun, Ice Cool, Red Fruit, y McLaren Dorado y Rojo."
+    },
+    "MARLBORO": {
+        "keywords": ["marlboro", "malboro"],
+        "nombre": "Marlboro",
+        "productos": "Marlboro Crafted Artesanal (Azul Blanda/Duro, Rojo Blanda/Duro, Ice Breeze XL), Red, Gold, Touch, Vista Blossom Fusion, Forest Mist, Garden Zing y Summer Zest."
+    },
+    "BAT": {
+        "keywords": ["bat", "british american tobacco"],
+        "nombre": "BAT",
+        "productos": "Kent (1 Blanco, 4 Gris, 8 Azul, Actron, Belmont Azul 10 y 20, Boost, Click, Ikon Mix, Neo Rose, Neo Tropic, Splash) y Lucky Strike (Azul 20, Rojo 20, Amber 20)."
+    },
+    "TABAQUERIA": {
+        "keywords": ["tabaqueria", "tabaquería"],
+        "nombre": "Tabaquería",
+        "productos": "Papelillos OCB (Negro Premium 1 1/4, Cáñamo Orgánico, Gris) y Dark Horse, Filtros OCB (Eco Slim, Regular, Slim Long, Mentolado), Enroladores Dark Horse, Moledores OCB (aluminio, eco, plástico) y Blunt Wrap variedades."
+    },
+    "TABACOS": {
+        "keywords": ["tabaco", "tabacos", "tabaco para enrolar"],
+        "nombre": "Tabacos",
+        "productos": "Tabacos para enrolar Bristol (sabores como Almendra, Arándano, Avellana, Berry, Caramelo, Cherry, Chicle, Chocolate, Coco, Frutilla, Mango, Menta, Vainilla, Natural) y Captain Black."
+    },
+    "ATLAS": {
+        "keywords": ["atlas", "oregon"],
+        "nombre": "Atlas",
+        "productos": "Atlas Blue, Atlas Box Red, Atlas Green, Atlas White y Oregon Soft."
+    },
+    "DESECHABLES": {
+        "keywords": ["desechable", "desechables"],
+        "nombre": "Desechables",
+        "productos": "Bolsas camiseta (variadas medidas) y taco, Contenedores térmicos marmita y sándwich, Portacomidas plumavit 205 (con y sin división), Vasos polipapel 12 oz, Pinchos de bambú y Revolvedores de madera."
+    }
+}
 
 def extract_search_terms(text: str) -> list[str]:
     """Extrae palabras clave de productos reales, evitando verbos, intenciones y palabras genéricas."""
@@ -1212,32 +1344,32 @@ SYSTEM_PROMPT = """Eres Camila, ejecutiva de ventas de Distribuidora Tridente (w
   Responde corto, relajado y natural según la hora (usando "tú", no "usted"):
   * "Hola.. buenas tardes, ¿en qué te puedo ayudar?" (o "buenos días" / "buenas noches").
   * "¡Hola! Buenas tardes, ¿en qué te ayudo hoy?"
-- Si el cliente en su primer mensaje saluda Y PIDE COSAS O PREGUNTA (ej: "hola buenas tardes tienes cigarros?"):
-  Saluda brevemente ("¡Hola!...") y responde de inmediato a lo que pidió.
+- Si el cliente en su primer mensaje saluda Y PREGUNTA POR UN PRODUCTO O CATEGORÍA:
+  Saluda brevemente ("¡Hola!...") y responde de inmediato indicando los productos de esa categoría.
 
-## REGLA DE ORO DE PRODUCTOS (MUY ESTRICTO):
-- NUNCA ofrezcas ni menciones productos que el cliente NO haya preguntado expresamente.
-- PROHIBIDO TERMINANTEMENTE ofrecer preservativos u otros productos al azar si el cliente no los mencionó.
-- SI EL CLIENTE PREGUNTA POR CIGARROS, CIGARRILLOS O PUCHOS:
-  PROHIBIDO TERMINANTEMENTE DECIR "PURITOS" U OFRECER PURITOS.
-  Debes mostrar la lista y marcas reales de cigarrillos y tabaco: Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos, tabaco para enrolar y papelillos OCB.
-  (Recuerda: si la conversación ya está en curso, NO digas "¡Hola!", ve directo a mostrar las opciones).
-- Si el cliente dice que quiere ser cliente, registrarse, comprar o consultar cómo comprar:
-  NO nombres ningún producto. Respóndele pidiéndole los datos de esta manera exacta:
-Si Claro, mira para ser cliente o comprar, necesito estos datos
-Razón Social:
-Correo: 
-WhatsApp:
+## LAS 10 CATEGORÍAS OFICIALES Y SUS PRODUCTOS:
+En Distribuidora Tridente trabajamos exactamente estas 10 categorías de productos:
+1. CONFITES: Alfajores (Bon o Bon blanco y leche, Classic, Premium), caramelos Alka (Cereza, Menta, Mentol, Naranja, Miel, Strong), chicles Big Time, chocolates y galletas.
+2. ABARROTES: Encendedores Clipper (variedades display) y Ronson (Clearlite, Colourlite, Round, Electrolite), y Pilas Duracell (AA, AAA, 9V, 2016, 2025, 2032, Auditivas). (¡SÍ vendemos abarrotes! Esto es lo que tenemos en esta categoría; PROHIBIDO decir que no vendemos abarrotes).
+3. VAPORIZADORES: Vaporizadores Dragbar 3500 Puffs (Frutos del Bosque, Manzana, Sandía y Uva).
+4. LATINOS: Latino Azul (10 y 20), Latino Rojo (10 y 20), Latino Freeze (10 y 20), Blackberry, Boom Freeze, Crazy Sun, Ice Cool, Red Fruit, y McLaren Dorado y Rojo.
+5. MARLBORO: Marlboro Crafted Artesanal (Azul Blanda/Duro, Rojo Blanda/Duro, Ice Breeze XL), Red, Gold, Touch, Vista Blossom Fusion, Forest Mist, Garden Zing y Summer Zest.
+6. BAT: Cigarrillos British American Tobacco: Kent (1 Blanco, 4 Gris, 8 Azul, Actron, Belmont Azul 10 y 20, Boost, Click, Ikon Mix, Neo Rose, Neo Tropic, Splash) y Lucky Strike (Azul 20, Rojo 20, Amber 20).
+7. TABAQUERIA: Papelillos OCB (Negro Premium 1 1/4, Cáñamo Orgánico, Gris) y Dark Horse, Filtros OCB (Eco Slim, Regular, Slim Long, Mentolado), Enroladores Dark Horse, Moledores OCB (aluminio, eco, plástico) y Blunt Wrap variedades.
+8. TABACOS: Tabacos para enrolar Bristol (sabores: Almendra, Arándano, Avellana, Berry, Caramelo, Cherry, Chicle, Chocolate, Coco, Frutilla, Mango, Menta, Vainilla, Natural) y Captain Black. (Puritos solo si el cliente pide expresamente puritos).
+9. ATLAS: Atlas Blue, Atlas Box Red, Atlas Green, Atlas White y Oregon Soft.
+10. DESECHABLES: Bolsas camiseta (variadas medidas) y taco, Contenedores térmicos marmita y sándwich, Portacomidas plumavit 205 (con y sin división), Vasos polipapel 12 oz, Pinchos bambú y Revolvedores madera.
 
-## CONSULTA DE PRODUCTOS ESPECÍFICOS:
-- Cuando el cliente pregunte por una marca o producto específico (ej: "¿qué tienes en kent?", "¿tienes galletas mckay?"):
-  Responde DIRECTAMENTE indicando las opciones y variedades que tenemos en stock (ej: "En Kent tenemos Kent 1 Blanco, Kent 4 Gris, Kent 8 Azul, Actron y Switch. ¿Cuáles te interesan?").
-  ¡NO agregues la plantilla de pedir datos (Razón Social, Correo, WhatsApp) en este momento! La plantilla solo se pide cuando el cliente pida precios/cotización, confirme cantidades o quiera comprar/ser cliente.
-- Si pregunta por cigarros o tabaco: NUNCA digas puritos; lista cigarrillos (Kent, Lucky Strike, Pall Mall, Marlboro, etc.) y tabaco para enrolar.
-- Si pregunta por un rubro que NO vendemos (como abarrotes, bebidas, pan, etc.):
-  Aclara directo sin decir hola: "No vendemos abarrotes, pero sí tenemos cigarrillos, confites, galletas y pilas. Puedes ver nuestro catálogo acá: https://www.distribuidoratridente.cl/catalogo.html"
-- SÍ vendemos cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Atlas, Latinos, Captain Black, OCB, Clipper), confites y chocolates (Costa, Arcor, Ambrosoli), galletas (McKay) y pilas (Duracell, Eveready).
-- Si preguntan en general qué productos vendemos: responde en 1 línea con las categorías principales (cigarrillos, confites, galletas y pilas) e invita a ver el catálogo oficial en https://www.distribuidoratridente.cl/catalogo.html
+## REGLA CUANDO PREGUNTAN POR CATEGORÍAS O SUS SINÓNIMOS (ESTRICTO):
+- Cuando los clientes pregunten en primera instancia por "CONFITES", "ABARROTES", "VAPORIZADORES", "LATINOS", "MARLBORO", "BAT", "TABAQUERIA", "TABACOS", "ATLAS", "DESECHABLES" o sus sinónimos:
+  * Camila DEBE responder ÚNICAMENTE con los productos que están dentro de esa categoría.
+  * * NADA MÁS DEBE RESPONDER. No agregues productos de otras categorías ni hables de cosas no pedidas.
+  * * TAMPOCO DES PRECIOS. En el chat no se dan valores unitarios ni totales.
+  * Si la conversación ya está en curso, NO saludes de nuevo; responde directo y pregunta qué cantidades o variedades busca cotizar.
+- Si el cliente pregunta en general por "cigarros", "cigarrillos" o "puchos":
+  PROHIBIDO TERMINANTEMENTE DECIR "PURITOS".
+  Muestra las marcas de cigarrillos que tenemos: Kent y Lucky Strike (BAT), Marlboro, Latinos y Atlas, además de tabacos para enrolar y papelillos OCB.
+- Si el cliente pregunta en general qué productos vendemos: responde en 1 línea con las categorías principales e invita a revisar https://www.distribuidoratridente.cl/catalogo.html
 
 ## REGLA DE ORO DE PRECIOS Y COTIZACIÓN (ESTRICTO):
 - En el chat NO das precios numéricos unitarios ni totales (solo confirmas disponibilidad, marcas y formatos).
@@ -1272,7 +1404,7 @@ WhatsApp:
     "productos_solicitados": "Detalle de productos o registro de nuevo cliente"
   }
   ```
-  El backend se encargará automáticamente de despachar el correo vía SMTP a los administradores de la tabla usuarios (rol_id = 29f48a5a-623c-4677-a8b8-e9c848165595) con el asunto "Nueva Cotización Web - [Razón Social]".
+  El backend se encargará automáticamente de despachar el correo y WhatsApp a los administradores y guardar el log en bdtridente.camila_logs.
 """
 
 # ---------------------------------------------------------------------------
@@ -1527,6 +1659,16 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     )
 
     is_first_turn = len(history) == 0
+    greeting_instruction = "Saluda brevemente ('¡Hola!...') y responde" if is_first_turn else "PROHIBIDO decir 'Hola' ni saludar de nuevo; responde DIRECTO"
+
+    # Detección de las 10 Categorías Oficiales y sus Sinónimos
+    matched_cat_key = None
+    for cat_k, cat_v in OFFICIAL_CATEGORY_MAP.items():
+        if any(re.search(rf"\b{re.escape(kw)}\b", user_lower) for kw in cat_v["keywords"]):
+            matched_cat_key = cat_k
+            break
+
+    is_tobacco_query = any(w in user_lower for w in ["cigarro", "cigarros", "cigarrillo", "cigarrillos", "pucho", "puchos"])
 
     if is_only_greeting:
         if is_first_turn:
@@ -1538,7 +1680,7 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             )
         else:
             db_context = "\n\n[CONVERSACIÓN EN CURSO: El cliente volvió a saludar. Responde corto y directo como humano en WhatsApp: 'Dime, ¿en qué te puedo ayudar?' (PROHIBIDO volver a decir '¡Hola! buenas tardes')]."
-    elif is_ser_cliente:
+    elif is_ser_cliente and not matched_cat_key and not terms:
         db_context = (
             "\n\n[INSTRUCCIÓN VITAL: El cliente quiere ser cliente o comprar. "
             "PROHIBIDO TERMINANTEMENTE ofrecer preservativos, puritos o productos no solicitados. "
@@ -1549,13 +1691,64 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             "Correo: \n"
             "WhatsApp:]"
         )
+    elif matched_cat_key:
+        cat_info = OFFICIAL_CATEGORY_MAP[matched_cat_key]
+        rows = query_productos(matched_cat_key, limit=8)
+        for r in rows:
+            found_products.append(r)
+
+        if is_price_or_cotizar_q or is_ser_cliente:
+            db_context = (
+                f"\n\n[COTIZACIÓN CATEGORÍA {cat_info['nombre']}]: "
+                f"{greeting_instruction}. En el chat no se dan precios unitarios; se maneja escala mayorista por volumen. "
+                f"Pide los datos de contacto con la plantilla exacta:\n"
+                f"Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
+                f"Razón Social:\n"
+                f"Correo: \n"
+                f"WhatsApp:"
+            )
+        else:
+            db_context = (
+                f"\n\n[CONSULTA CATEGORÍA {cat_info['nombre']}]:\n"
+                f"Productos y variedades disponibles: {cat_info['productos']}\n"
+                f"(INSTRUCCIÓN: {greeting_instruction} indicando de forma concisa y directa los productos de la categoría {cat_info['nombre']}. "
+                f"* NADA MÁS DEBES RESPONDER (no menciones otros rubros ni inventes productos). "
+                f"* TAMPOCO DES PRECIOS. "
+                f"Pregunta qué cantidades o variedades necesita cotizar. "
+                f"¡NO pegues la plantilla de pedir datos todavía!)."
+            )
+    elif is_tobacco_query:
+        rows = query_productos("bat", limit=8)
+        for r in rows:
+            found_products.append(r)
+
+        if is_price_or_cotizar_q or is_ser_cliente:
+            db_context = (
+                f"\n\n[COTIZACIÓN CIGARRILLOS]: "
+                f"{greeting_instruction}. En el chat no se dan precios unitarios; se maneja escala mayorista por volumen. "
+                f"Pide los datos con la plantilla exacta:\n"
+                f"Si Claro, mira para ser cliente o comprar, necesito estos datos\n"
+                f"Razón Social:\n"
+                f"Correo: \n"
+                f"WhatsApp:"
+            )
+        else:
+            db_context = (
+                f"\n\n[CONSULTA CIGARRILLOS]:\n"
+                f"Marcas disponibles: Kent y Lucky Strike (BAT), Marlboro, Latinos y Atlas, además de tabacos para enrolar Bristol y papelillos OCB.\n"
+                f"(INSTRUCCIÓN: {greeting_instruction}. PROHIBIDO TERMINANTEMENTE DECIR 'puritos' o hablar de puritos. "
+                f"Indica las marcas reales de cigarrillos disponibles. "
+                f"* NADA MÁS DEBES RESPONDER, tampoco des precios. "
+                f"Pregunta qué marcas o cantidades busca cotizar. "
+                f"¡NO pegues la plantilla de pedir datos todavía!)."
+            )
     elif is_general_products_q and not terms:
         greeting_txt = "¡Hola! " if is_first_turn else ""
         db_context = (
-            f"\n\n[INSTRUCCIÓN: El cliente pregunta qué productos vendemos. "
+            f"\n\n[INSTRUCCIÓN CATEGORÍAS GENERALES: "
             + ("" if is_first_turn else "PROHIBIDO decir 'Hola'. ")
-            + f"Responde en 1 línea corta: '{greeting_txt}Tenemos cigarrillos, tabacos, confites, galletas y pilas. Puedes revisar todo nuestro catálogo acá: https://www.distribuidoratridente.cl/catalogo.html'. "
-            f"¡NO nombres ningún producto individual específico que no haya pedido!]"
+            + f"Responde en 1 o 2 líneas: '{greeting_txt}Trabajamos 10 categorías principales: Confites, Abarrotes (encendedores y pilas), Vaporizadores, Latinos, Marlboro, BAT (Kent, Lucky Strike), Tabaquería, Tabacos, Atlas y Desechables. ¿Qué categoría o producto te interesa cotizar?'. "
+            f"* NADA MÁS DEBES RESPONDER, tampoco des precios.]"
         )
     elif is_price_or_cotizar_q and not terms:
         db_context = (
@@ -1568,9 +1761,7 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             "WhatsApp:]"
         )
     elif terms:
-        found_products = []
         seen_codes = set()
-        is_tobacco_query = any(t in ["cigarro", "cigarros", "cigarrillo", "cigarrillos", "pucho", "puchos", "tabaco", "tabacos"] for t in terms)
         for term in terms[:2]:
             rows = query_productos(term, limit=6)
             for r in rows:
@@ -1578,8 +1769,6 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
                 if code not in seen_codes:
                     seen_codes.add(code)
                     found_products.append(r)
-
-        greeting_instruction = "Saluda brevemente ('¡Hola!...') y responde" if is_first_turn else "PROHIBIDO decir 'Hola' ni saludar de nuevo; responde DIRECTO"
 
         # Detectar si el cliente está pidiendo cotización explícita o solo consultando qué hay
         is_asking_varieties = any(p in user_lower for p in ["que tienes", "qué tienes", "cuales tienes", "cuáles tienes", "que marcas", "qué marcas", "que hay", "qué hay", "tienes", "variedades", "cuales hay", "cuáles hay"])
@@ -1591,19 +1780,13 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
                 if "purito" not in str(p.get("nombre") or "").lower() or any("purito" in t for t in terms)
             ]
             prods_resumen = [f"• {nom}" for nom in prods_clean[:8]]
-            
-            if is_tobacco_query and any(t in ["cigarro", "cigarros", "cigarrillo", "cigarrillos", "pucho", "puchos"] for t in terms):
-                instruccion = (
-                    f"{greeting_instruction}. PROHIBIDO DECIR 'puritos' o hablar de puritos. "
-                    "Muestra las marcas disponibles de cigarrillos y tabacos (Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos, tabacos para enrolar y papelillos OCB). "
-                    "Pregunta qué marcas o cantidades busca. "
-                    "¡NO pegues la plantilla de pedir datos todavía!"
-                )
-            elif is_asking_varieties or not is_asking_quote:
+
+            if is_asking_varieties or not is_asking_quote:
                 instruccion = (
                     f"{greeting_instruction} confirmando stock de estas opciones de forma corta y directa en 1 línea. "
                     "Pregunta cuál o qué cantidades le interesan. "
-                    "¡NO pegues la plantilla de pedir datos todavía; solo responde qué variedades tenemos!"
+                    "* NADA MÁS DEBES RESPONDER, tampoco des precios. "
+                    "¡NO pegues la plantilla de pedir datos todavía!"
                 )
             else:
                 instruccion = (
@@ -1621,18 +1804,12 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
                 + f"\n(INSTRUCCIÓN: {instruccion})"
             )
         else:
-            if is_tobacco_query:
-                db_context = (
-                    f"\n\n[INSTRUCCIÓN CIGARROS/TABACO: {greeting_instruction}. "
-                    "SÍ vendemos cigarrillos (Kent, Lucky Strike, Pall Mall, Marlboro, Philip Morris, Chesterfield, Atlas, Latinos) y tabacos para enrolar con papelillos OCB. "
-                    "¡JAMÁS digas puritos! Confirma estas marcas y pregunta qué cantidades busca]."
-                )
-            else:
-                db_context = (
-                    f"\n\n[DATOS: No se encontró producto idéntico para: '{', '.join(terms)}'. "
-                    f"{greeting_instruction}. Si busca abarrotes o productos que no vendemos, aclara amablemente que no vendemos ese rubro pero sí cigarrillos, confites, galletas y pilas. "
-                    f"Responde en 1 O 2 LÍNEAS breves invitando a ver https://www.distribuidoratridente.cl/catalogo.html ]."
-                )
+            db_context = (
+                f"\n\n[DATOS: No se encontró producto específico para: '{', '.join(terms)}'. "
+                f"{greeting_instruction}. Indica que trabajamos Confites, Abarrotes (encendedores y pilas), Vaporizadores, Latinos, Marlboro, BAT, Tabaquería, Tabacos, Atlas y Desechables. "
+                f"Responde en 1 o 2 líneas breves invitando a ver el catálogo oficial en https://www.distribuidoratridente.cl/catalogo.html . "
+                f"* NADA MÁS DEBES RESPONDER, tampoco des precios.]"
+            )
     else:
         if is_first_turn:
             db_context = f"\n\n[Horario en Chile: {saludo_horario}. Saluda como humana y responde en MÁXIMO 1 o 2 LÍNEAS breves, estilo WhatsApp]."
