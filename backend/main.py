@@ -1833,8 +1833,25 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
             assistant_text = f"¡Hola! {saludo_horario.capitalize()}, ¿en qué te puedo ayudar?"
         elif is_ser_cliente or is_price_or_cotizar_q:
             assistant_text = "Si Claro, mira para ser cliente o comprar, necesito estos datos:\nRazón Social:\nCorreo:\nWhatsApp:"
+        elif matched_cat_key:
+            cat_info = OFFICIAL_CATEGORY_MAP[matched_cat_key]
+            prefix = f"¡Hola! {saludo_horario.capitalize()}. " if is_first_turn else ""
+            assistant_text = f"{prefix}En {cat_info['nombre']} tenemos {cat_info['productos']} ¿Qué variedades o cantidades necesitas cotizar?"
+        elif is_tobacco_query:
+            prefix = f"¡Hola! {saludo_horario.capitalize()}. " if is_first_turn else ""
+            assistant_text = f"{prefix}En cigarrillos tenemos Kent y Lucky Strike (BAT), Marlboro, Latinos y Atlas, además de tabacos para enrolar Bristol y papelillos OCB. ¿Qué marcas o cantidades buscas?"
+        elif is_general_products_q:
+            prefix = f"¡Hola! {saludo_horario.capitalize()}. " if is_first_turn else ""
+            assistant_text = f"{prefix}Trabajamos 10 categorías: Confites, Abarrotes (encendedores y pilas), Vaporizadores, Latinos, Marlboro, BAT (Kent, Lucky Strike), Tabaquería, Tabacos, Atlas y Desechables. ¿Qué categoría te interesa cotizar?"
+        elif found_products:
+            prefix = f"¡Hola! {saludo_horario.capitalize()}. " if is_first_turn else ""
+            prods_clean = [
+                p.get("nombre") for p in found_products
+                if "purito" not in str(p.get("nombre") or "").lower()
+            ]
+            assistant_text = f"{prefix}Tenemos disponibles: {', '.join(prods_clean[:6])}. ¿Cuáles necesitas cotizar?"
         else:
-            assistant_text = "Sí, tenemos stock disponible. Si gustas indícame tu Razón Social, correo y WhatsApp para enviarte la cotización formal con los precios mayoristas."
+            assistant_text = "Si Claro, mira para ser cliente o comprar, necesito estos datos:\nRazón Social:\nCorreo:\nWhatsApp:"
 
     if not is_first_turn:
         # En conversaciones ya iniciadas, PROHIBIDO volver a decir "¡Hola!", "Hola buenas noches", etc.
