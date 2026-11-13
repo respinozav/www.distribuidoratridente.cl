@@ -73,9 +73,9 @@ gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 PRIMARY_MODEL = "gemini-3.5-flash-lite"
 FALLBACK_MODELS = [
     "gemini-3.5-flash-lite",
-    "gemini-3-flash-preview",
-    "gemma-4-26b-a4b-it",
     "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
 ]
 
 def generate_with_fallback(contents: list, system_instruction: str) -> str:
@@ -91,7 +91,6 @@ def generate_with_fallback(contents: list, system_instruction: str) -> str:
                         system_instruction=system_instruction,
                         temperature=0.3,
                         max_output_tokens=280,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
                     ),
                 )
                 if res and res.text:
@@ -1489,6 +1488,7 @@ def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     terms = extract_search_terms(user_text)
     db_context = ""
     saludo_horario = get_chile_time_greeting()
+    found_products: list[dict] = []
 
     # ── Detección inteligente de intenciones ──
     clean_words = [w for w in re.sub(r"[^\w\s]", "", user_lower).split() if w]
